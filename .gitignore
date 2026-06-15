@@ -1,0 +1,9 @@
+# Third-party Nim→WASM toolchain - ~68 MB of prebuilt binaries from
+# benagastov/Nim-WASM-Compiler. Fetched on demand by fetch-toolchain.sh;
+# never committed (not ours to redistribute, and far too large for git).
+/toolchain/
+
+# OS / editor cruft
+.DS_Store
+*.log
+*.swp

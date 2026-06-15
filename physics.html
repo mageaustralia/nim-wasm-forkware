@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NimParticles - forkware</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+         max-width: 980px; margin: 0 auto; padding: 22px 20px 60px;
+         background: #0d1117; color: #e6edf3; }
+  h1 { color: #f0883e; margin: 0 0 2px; font-size: 22px; }
+  .sub { color: #8b949e; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+  .sub b { color: #adbac7; }
+  a { color: #58a6ff; text-decoration: none; }
+
+  .topbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .pill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 11px; }
+  .pill.idle { background: #21262d; color: #8b949e; }
+  .pill.busy { background: #f0883e; color: #000; }
+  .pill.ok   { background: #2ea043; color: #fff; }
+  .pill.err  { background: #f85149; color: #fff; }
+  .grow { flex: 1; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid #21262d; margin-bottom: 14px; }
+  .tab { background: none; border: none; color: #8b949e; padding: 9px 14px; cursor: pointer;
+         font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent; }
+  .tab.active { color: #e6edf3; border-bottom-color: #f0883e; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  button.act { background: #238636; color: #fff; border: none; border-radius: 6px;
+               padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  button.act:hover:not(:disabled) { background: #2ea043; }
+  button.act.alt { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+  button.act.alt:hover:not(:disabled) { background: #30363d; }
+  button.act:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+
+  canvas { width: 100%; max-width: 760px; height: auto; border: 1px solid #30363d; border-radius: 8px;
+           display: block; cursor: crosshair; background: #000; }
+  .ctrls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  .info { color: #8b949e; font-size: 12px; font-family: ui-monospace, monospace; }
+  .examples { margin-top: 14px; }
+  .eqlabel { color: #6e7681; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .chip { display: inline-block; background: #161b22; border: 1px solid #30363d; color: #adbac7;
+          border-radius: 14px; padding: 5px 12px; margin: 0 6px 8px 0; font-size: 12.5px; cursor: pointer; }
+  .chip:hover { border-color: #1f6feb; color: #e6edf3; }
+
+  textarea { width: 100%; height: 470px; background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+             border-radius: 6px; padding: 12px; font-family: ui-monospace, monospace; font-size: 12.5px;
+             line-height: 1.45; resize: vertical; tab-size: 2; }
+  textarea:focus { outline: none; border-color: #1f6feb; }
+  .srcbar { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+  .hint { color: #8b949e; font-size: 12px; }
+
+  pre#log { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px;
+            font-size: 12px; line-height: 1.5; max-height: 560px; overflow: auto; white-space: pre-wrap;
+            word-break: break-word; }
+  .l-info { color: #58a6ff; } .l-ok { color: #3fb950; } .l-err { color: #f85149; }
+  .l-out { color: #e6edf3; } .l-step { color: #f0883e; font-weight: 700; }
+
+  .banner { background: #2d1a0a; border: 1px solid #9e5a1e; color: #ffce99; border-radius: 8px;
+            padding: 12px 14px; margin-bottom: 14px; font-size: 13px; line-height: 1.5; display: none; }
+  .banner code { background: #1c1206; padding: 1px 5px; border-radius: 4px; }
+  .footer { color: #6e7681; font-size: 11px; margin-top: 26px; padding-top: 12px; border-top: 1px solid #21262d; }
+</style>
+</head>
+<body>
+
+<h1>NimParticles &nbsp;<span style="font-size:13px;color:#8b949e;font-weight:400;">forkware</span></h1>
+<div class="sub">
+  Thousands of particles, integrated every frame by a real <b>Nim</b> program
+  compiled to <b>WebAssembly</b> in your browser - the kind of per-frame N-body
+  work you can't fake in hand-written JS. Move the mouse to attract, hold the
+  button to repel. Then open <b>Engine (Nim)</b>, rewrite the <code>FORCE LAW</code>
+  - Newtonian gravity, a vortex, a spring - press <b>Recompile</b>, and the whole
+  swarm obeys your physics. <b>Save Fork</b> to pass your universe on.
+</div>
+
+<div id="banner" class="banner"></div>
+
+<div class="topbar">
+  <span id="status" class="pill idle">loading…</span>
+  <span class="grow"></span>
+  <button id="saveFork" class="act alt" title="Download this document with your edited engine baked in">Save Fork ↧</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="view">Simulate</button>
+  <button class="tab" data-tab="src">Engine (Nim)</button>
+  <button class="tab" data-tab="log">Build log</button>
+</div>
+
+<!-- ── Simulate ─────────────────────────────────────────────────────────── -->
+<div class="panel active" id="panel-view">
+  <canvas id="screen" width="760" height="460"></canvas>
+  <div class="ctrls">
+    <button id="reset" class="act alt">Reset</button>
+    <button id="more" class="act alt">+1000</button>
+    <button id="less" class="act alt">−1000</button>
+    <span id="info" class="info"></span>
+  </div>
+  <div class="examples">
+    <div class="eqlabel">Swap the force law - click to load into the Engine tab, then Recompile</div>
+    <span class="chip" data-force="gravity">Gravity · 1/r²</span>
+    <span class="chip" data-force="cube">Inverse-cube · 1/r³</span>
+    <span class="chip" data-force="spring">Spring · linear pull</span>
+    <span class="chip" data-force="swirl">Swirl · vortex</span>
+  </div>
+</div>
+
+<!-- ── Engine source ────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-src">
+  <div class="srcbar">
+    <button id="recompile" class="act">Recompile engine</button>
+    <span class="hint">Edit the <code>FORCE LAW</code> block (or the colours / drag), then recompile. The first build downloads the ~70&nbsp;MB toolchain, cached afterwards.</span>
+  </div>
+  <textarea id="editor" spellcheck="false"></textarea>
+</div>
+
+<!-- ── Build log ────────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-log">
+  <pre id="log"><span class="l-info">[idle]</span></pre>
+</div>
+
+<div class="footer">
+  Pipeline: Nim 2.2.4 (wasm) → C → <code>clang</code> (wasm) → <code>wasm-ld</code> (wasm) → your simulation, stepped per-frame through its exported <code>step</code>.
+  Compiler by <a href="https://github.com/benagastov/Nim-WASM-Compiler" target="_blank" rel="noopener">benagastov/Nim-WASM-Compiler</a>.
+  Companions: <a href="./unitcalc.html">unitcalc</a> · <a href="./nimplot.html">nimplot</a> · <a href="./fractal.html">fractal</a>.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     THE ENGINE. Real Nim, compiled to WebAssembly in-browser. step() advances
+     the particles and renders them (with motion trails) into a frame buffer
+     the page blits to the canvas. Edit the FORCE LAW block to change the physics.
+     ════════════════════════════════════════════════════════════════════════ -->
+<script type="text/x-nim" id="engine-src">
+## NimParticles engine - the compiled, forkable core.
+## init() seeds the particles; step() integrates them once and draws them into
+## an RGBA frame buffer (with fading trails); the page blits it and calls step()
+## every frame. Edit the FORCE LAW block, press "Recompile engine", and the
+## swarm changes. Then Save Fork.
+
+import std/math
+
+const
+  MaxN = 8000
+  MaxW = 960
+  MaxH = 640
+
+var
+  px, py, vx, vy: array[MaxN, float]      # particle state
+  np = 0                                   # active count
+  fw = 0
+  fh = 0
+  fb: array[MaxW * MaxH * 4, uint8]        # RGBA frame buffer (shared with JS)
+  rngState: uint32 = 0x2545F491'u32
+
+proc rnd(): float =
+  rngState = rngState xor (rngState shl 13)
+  rngState = rngState xor (rngState shr 17)
+  rngState = rngState xor (rngState shl 5)
+  result = rngState.float / 4294967295.0
+
+proc clamp8(v: float): uint8 =
+  if v >= 255.0: 255'u8 else: v.uint8
+
+proc addPix(idx: int; r, g, b: float) =
+  fb[idx]     = clamp8(fb[idx].float + r)
+  fb[idx + 1] = clamp8(fb[idx + 1].float + g)
+  fb[idx + 2] = clamp8(fb[idx + 2].float + b)
+  fb[idx + 3] = 255
+
+# ── seed the system ─────────────────────────────────────────────────────────
+proc init(n, w, h: cint) {.exportc, used,
+    codegenDecl: "__attribute__((export_name(\"init\"), used)) $# $#$#".} =
+  np = min(n.int, MaxN)
+  fw = min(w.int, MaxW)
+  fh = min(h.int, MaxH)
+  for i in 0 ..< np:
+    px[i] = rnd() * fw.float
+    py[i] = rnd() * fh.float
+    let a = rnd() * 6.2831853
+    let s = rnd() * 40.0
+    vx[i] = cos(a) * s
+    vy[i] = sin(a) * s
+  for i in 0 ..< fw * fh * 4:
+    fb[i] = 0
+
+# ── advance one frame ───────────────────────────────────────────────────────
+#  ax, ay   : pointer position    strength : >0 attract, <0 repel, 0 off
+proc step(dt, ax, ay, strength: float) {.exportc, used,
+    codegenDecl: "__attribute__((export_name(\"step\"), used)) $# $#$#".} =
+  # fade the trails (multiply the whole buffer towards black)
+  let total = fw * fh * 4
+  var k = 0
+  while k < total:
+    fb[k]     = (fb[k].int * 222 div 255).uint8
+    fb[k + 1] = (fb[k + 1].int * 222 div 255).uint8
+    fb[k + 2] = (fb[k + 2].int * 222 div 255).uint8
+    k += 4
+
+  for i in 0 ..< np:
+    # >>> FORCE LAW (edit me) >>>
+    if strength != 0.0:
+      let dx = ax - px[i]
+      let dy = ay - py[i]
+      let r2 = dx*dx + dy*dy + 120.0      # +softening avoids a singularity
+      let f = strength / r2               # Newtonian-style 1/r^2 attraction
+      vx[i] += f * dx * dt
+      vy[i] += f * dy * dt
+    vx[i] *= 0.999                         # a little drag
+    vy[i] *= 0.999
+    # <<< FORCE LAW <<<
+
+    # safety net: keep a forked (maybe unstable) law from blowing up the sim
+    let v2 = vx[i]*vx[i] + vy[i]*vy[i]
+    if v2 != v2:                           # NaN -> respawn this particle
+      px[i] = rnd() * fw.float
+      py[i] = rnd() * fh.float
+      vx[i] = 0.0
+      vy[i] = 0.0
+    elif v2 > 10000.0:                     # cap the top speed
+      let sc = sqrt(10000.0 / v2)
+      vx[i] *= sc
+      vy[i] *= sc
+
+    px[i] += vx[i] * dt
+    py[i] += vy[i] * dt
+
+    # bounce off the walls
+    if px[i] < 0.0:        px[i] = 0.0;            vx[i] = -vx[i] * 0.8
+    if px[i] >= fw.float:  px[i] = fw.float - 1.0; vx[i] = -vx[i] * 0.8
+    if py[i] < 0.0:        py[i] = 0.0;            vy[i] = -vy[i] * 0.8
+    if py[i] >= fh.float:  py[i] = fh.float - 1.0; vy[i] = -vy[i] * 0.8
+
+    # draw the particle, coloured by speed (slow = blue, fast = hot)
+    let sp = sqrt(vx[i]*vx[i] + vy[i]*vy[i])
+    let t = min(sp / 140.0, 1.0)
+    let xi = px[i].int
+    let yi = py[i].int
+    addPix((yi * fw + xi) * 4, 50.0 + t*205.0, 110.0 + t*90.0, 255.0 - t*60.0)
+
+proc fbAddr(): pointer {.exportc, used,
+    codegenDecl: "__attribute__((export_name(\"fbAddr\"), used)) $# $#$#".} =
+  cast[pointer](addr fb[0])
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     THE SHELL. Loads the Nim→wasm toolchain, compiles the engine, instantiates
+     it with a WASI shim, and runs the per-frame simulation loop.
+     ════════════════════════════════════════════════════════════════════════ -->
+<script src="./toolchain/nim/nim-bundle.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const ORIGINAL_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const TOOLCHAIN = './toolchain';
+
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status'), bannerEl = $('banner');
+  const editorEl = $('editor'), logEl = $('log');
+  const canvas = $('screen'), ctx = canvas.getContext('2d'), infoEl = $('info');
+  const W = canvas.width, H = canvas.height;
+
+  const ENGINE_SRC = $('engine-src').textContent.replace(/^\n/, '');
+  editorEl.value = ENGINE_SRC;
+
+  // force-law variants for the Simulate-tab chips (replace the FORCE LAW block)
+  const FORCES = {
+    gravity: [
+      '    if strength != 0.0:',
+      '      let dx = ax - px[i]',
+      '      let dy = ay - py[i]',
+      '      let r2 = dx*dx + dy*dy + 120.0',
+      '      let f = strength / r2',
+      '      vx[i] += f * dx * dt',
+      '      vy[i] += f * dy * dt',
+      '    vx[i] *= 0.999',
+      '    vy[i] *= 0.999',
+    ],
+    cube: [
+      '    if strength != 0.0:',
+      '      let dx = ax - px[i]',
+      '      let dy = ay - py[i]',
+      '      let r2 = dx*dx + dy*dy + 120.0',
+      '      let f = strength * 12.0 / (r2 * sqrt(r2))',
+      '      vx[i] += f * dx * dt',
+      '      vy[i] += f * dy * dt',
+      '    vx[i] *= 0.999',
+      '    vy[i] *= 0.999',
+    ],
+    spring: [
+      '    if strength != 0.0:',
+      '      let dx = ax - px[i]',
+      '      let dy = ay - py[i]',
+      '      vx[i] += strength * 0.00004 * dx * dt',
+      '      vy[i] += strength * 0.00004 * dy * dt',
+      '    vx[i] *= 0.99',
+      '    vy[i] *= 0.99',
+    ],
+    swirl: [
+      '    if strength != 0.0:',
+      '      let dx = ax - px[i]',
+      '      let dy = ay - py[i]',
+      '      let r2 = dx*dx + dy*dy + 120.0',
+      '      let f = strength / r2',
+      '      # gravity with a perpendicular (tangential) component -> orbits',
+      '      vx[i] += (f*dx - f*0.7*dy) * dt',
+      '      vy[i] += (f*dy + f*0.7*dx) * dt',
+      '    vx[i] *= 0.999',
+      '    vy[i] *= 0.999',
+    ],
+  };
+  function applyForce(key) {
+    const body = FORCES[key];
+    if (!body) return;
+    const block = '    # >>> FORCE LAW (edit me) >>>\n' + body.join('\n') + '\n    # <<< FORCE LAW <<<';
+    editorEl.value = editorEl.value.replace(/    # >>> FORCE LAW[\s\S]*?# <<< FORCE LAW <<</, block);
+  }
+
+  for (const tab of document.querySelectorAll('.tab')) {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      $('panel-' + tab.dataset.tab).classList.add('active');
+    });
+  }
+
+  function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = 'pill ' + (cls || 'idle'); }
+  function log(text, cls) {
+    const span = document.createElement('span');
+    span.className = 'l-' + (cls || 'info');
+    span.textContent = text + '\n';
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function clearLog() { logEl.textContent = ''; }
+
+  // ── WASI shim (instantiate the engine, keep it, call its exports) ─────────
+  function instantiateEngine(bytes) {
+    return WebAssembly.compile(bytes).then((module) => {
+      const ENC = new TextEncoder();
+      const memRef = { mem: null };
+      const u8 = () => new Uint8Array(memRef.mem.buffer);
+      const dv = () => new DataView(memRef.mem.buffer);
+      const SUCCESS = 0, BADF = 8;
+      const out = { stdout: [], stderr: [] };
+      function ProcExit(code) { this.code = code; this.__procExit = true; }
+      function writeIovs(fd, iovsPtr, iovsLen, nwrittenPtr) {
+        const view = dv(); let total = 0;
+        for (let i = 0; i < iovsLen; i++) {
+          const p = iovsPtr + i * 8;
+          const buf = view.getUint32(p, true), len = view.getUint32(p + 4, true);
+          if (len > 0) { out[fd === 2 ? 'stderr' : 'stdout'].push(u8().slice(buf, buf + len)); total += len; }
+        }
+        view.setUint32(nwrittenPtr, total, true);
+        return SUCCESS;
+      }
+      const impl = {
+        proc_exit(code) { throw new ProcExit(code); },
+        fd_write(fd, p, n, w) { return writeIovs(fd, p, n, w); },
+        fd_read(_fd, _i, _n, nreadPtr) { dv().setUint32(nreadPtr, 0, true); return SUCCESS; },
+        fd_close() { return SUCCESS; },
+        fd_seek(_fd, _lo, _hi, _w, newOffPtr) {
+          if (typeof newOffPtr === 'number') { dv().setUint32(newOffPtr, 0, true); dv().setUint32(newOffPtr + 4, 0, true); }
+          return SUCCESS;
+        },
+        fd_fdstat_get(_fd, buf) {
+          const v = dv(); v.setUint8(buf, 2); v.setUint16(buf + 2, 0, true);
+          v.setBigUint64(buf + 8, 0xffffffffffffffffn, true);
+          v.setBigUint64(buf + 16, 0xffffffffffffffffn, true);
+          return SUCCESS;
+        },
+        fd_prestat_get() { return BADF; },
+        fd_prestat_dir_name() { return BADF; },
+        args_sizes_get(a, b) { const v = dv(); v.setUint32(a, 1, true); v.setUint32(b, ENC.encode('engine').length + 1, true); return SUCCESS; },
+        args_get(argvPtr, bufPtr) { dv().setUint32(argvPtr, bufPtr, true); u8().set(ENC.encode('engine\0'), bufPtr); return SUCCESS; },
+        environ_sizes_get(a, b) { const v = dv(); v.setUint32(a, 0, true); v.setUint32(b, 0, true); return SUCCESS; },
+        environ_get() { return SUCCESS; },
+        clock_time_get(_id, _p, t) { dv().setBigUint64(t, BigInt(Date.now()) * 1000000n, true); return SUCCESS; },
+        clock_res_get(_id, r) { dv().setBigUint64(r, 1000000n, true); return SUCCESS; },
+        random_get(buf, len) {
+          const b = u8().subarray(buf, buf + len);
+          if (globalThis.crypto && crypto.getRandomValues)
+            for (let o = 0; o < len; o += 65536) crypto.getRandomValues(b.subarray(o, Math.min(o + 65536, len)));
+          else for (let i = 0; i < len; i++) b[i] = (Math.random() * 256) | 0;
+          return SUCCESS;
+        },
+        poll_oneoff(_i, _o, _n, neventsPtr) { dv().setUint32(neventsPtr, 0, true); return SUCCESS; },
+        sched_yield() { return SUCCESS; },
+      };
+      const imports = {};
+      for (const { module: mod, name, kind } of WebAssembly.Module.imports(module)) {
+        imports[mod] = imports[mod] || {};
+        if (kind === 'function') imports[mod][name] = impl[name] || (() => 0);
+      }
+      return WebAssembly.instantiate(module, imports).then((instance) => {
+        memRef.mem = instance.exports.memory;
+        try {
+          if (typeof instance.exports.NimMain === 'function') instance.exports.NimMain();
+          else if (typeof instance.exports._start === 'function') instance.exports._start();
+        } catch (e) { if (!(e && e.__procExit)) throw e; }
+        for (const fn of ['step', 'fbAddr', 'init'])
+          if (typeof instance.exports[fn] !== 'function')
+            throw new Error('engine is missing the ' + fn + ' export - the linker may have stripped it');
+        return instance;
+      });
+    });
+  }
+
+  // ── live engine + sim state ───────────────────────────────────────────────
+  let engine = null, engineMem = null;
+  let particleCount = 4000;
+  const mouse = { x: W / 2, y: H / 2, inside: false, down: false };
+
+  function blit() {
+    const ptr = engine.exports.fbAddr();
+    const src = new Uint8ClampedArray(engineMem.buffer, ptr, W * H * 4);
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(src), W, H), 0, 0);
+  }
+
+  let frames = 0, fps = 0, fpsT = performance.now();
+  function loop() {
+    if (engine && !busy) {
+      const strength = mouse.inside ? (mouse.down ? -4200.0 : 2600.0) : 0.0;
+      engine.exports.step(1.0, mouse.x, mouse.y, strength);
+      blit();
+      frames++;
+      const now = performance.now();
+      if (now - fpsT >= 500) { fps = Math.round(frames * 1000 / (now - fpsT)); frames = 0; fpsT = now; }
+      const mode = !mouse.inside ? 'idle' : (mouse.down ? 'repel' : 'attract');
+      infoEl.textContent = `${particleCount} particles · ${fps} fps · ${mode}`;
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ── compiler bridge: Nim source -> app.wasm bytes ─────────────────────────
+  let clangModule = null, compilerReady = false;
+  function loadNimReady() {
+    return new Promise((resolve, reject) => {
+      const started = performance.now();
+      (function poll() {
+        if (typeof window.FS !== 'undefined' && typeof window.callMain !== 'undefined') return resolve();
+        if (performance.now() - started > 60000) return reject(new Error('nim runtime did not initialise (toolchain missing?)'));
+        setTimeout(poll, 50);
+      })();
+    });
+  }
+  async function initCompiler() {
+    if (typeof window.callMain === 'undefined' && typeof window.FS === 'undefined') throw new Error('toolchain not found');
+    await loadNimReady();
+    await new Promise(r => setTimeout(r, 150));
+    log('[init] nim runtime ready, loading clang.js…', 'info');
+    clangModule = await import(`${TOOLCHAIN}/clang/clang.js`);
+    const CLANG_DIST = new URL(`${TOOLCHAIN}/clang`, window.location.href).href.replace(/\/$/, '');
+    await clangModule.init({ path: CLANG_DIST });
+    compilerReady = true;
+    log('[init] clang.js ready', 'ok');
+  }
+
+  async function compileToWasm(nimSource) {
+    log('═══ Nim → C ═══', 'step');
+    let nimRc = 0;
+    {
+      let so = '', se = '';
+      const op = window.print, oe = window.printErr;
+      window.print = (t) => { so += t + '\n'; };
+      window.printErr = (t) => { se += t + '\n'; };
+      globalThis.__NIM_USER_CODE__ = nimSource;
+      globalThis.__NIM_USER_CODE_PENDING__ = nimSource;
+      globalThis.__NIM_USER_PATH__ = '/tmp/user.nim';
+      globalThis.__NIM_USER_CODE_WRITTEN__ = false;
+      const nimArgs = ['c', '--hints:off', '-d:release', '-d:useMalloc',
+                       '--path:/lib/pure', '--path:/lib/pure/collections', '--path:/lib/core',
+                       '-o:/tmp/user', '/tmp/user.nim'];
+      try { nimRc = window.callMain(nimArgs); }
+      catch (e) { log('[nim] callMain threw: ' + (e.message || e), 'err'); nimRc = -1; }
+      window.print = op; window.printErr = oe;
+      if (se.trim()) se.trim().split('\n').forEach(l => l && log(l, 'err'));
+    }
+    log(`[nim] returned ${nimRc} (gcc failure expected; .c files are in MEMFS)`, 'info');
+
+    log('═══ collect C from nim cache ═══', 'step');
+    const cacheDir = '/home/web_user/.cache/nim/user_r';
+    const entries = window.FS.readdir(cacheDir);
+    const cFiles = entries.filter(f => f.endsWith('.nim.c') || f.endsWith('.nim.cpp')).sort();
+    if (cFiles.length === 0) throw new Error('no .c files in nim cache - the Nim compile failed (see log above)');
+    log(`[nim] ${cFiles.length} translation units`, 'info');
+
+    let nimbaseContent = '';
+    try { nimbaseContent = await (await fetch(`${TOOLCHAIN}/nim/nimbase.h`)).text(); }
+    catch (e) { log('[nim] could not fetch nimbase.h: ' + e.message, 'err'); }
+
+    const cFilesData = [];
+    for (let idx = 0; idx < cFiles.length; idx++) {
+      const f = cFiles[idx];
+      const c = window.FS.readFile(cacheDir + '/' + f, { encoding: 'utf8' });
+      const cleaned = c
+        .split('\n')
+        .filter(line => !/^#include\s+["<](?:\/lib\/)?nimbase\.h[">]\s*$/.test(line))
+        .filter(line => !/^#define NIM_INTBITS/.test(line))
+        .filter(line => !/^#define NIM_EmulateOverflowChecks/.test(line))
+        .filter(line => !/^#undef (LANGUAGE_C|MIPSEB|MIPSEL|PPC|R3000|R4000|i386|linux|mips|near|far|powerpc|unix)\s*$/.test(line))
+        .join('\n')
+        .replace(/int main\(int (\w+), char\*\* (\w+), char\*\* (\w+)\) \{/, 'int main(int $1, char** $2) {\n\tchar** $3 = (char**)0;');
+      const header = '/* Combined header */\n#define NIM_INTBITS 32\n#define NIM_EmulateOverflowChecks\n#include <signal.h>\n#include <string.h>\ntypedef void (*__sighandler_t)(int);\n#ifndef SIG_IGN\n#define SIG_IGN ((__sighandler_t)1)\n#endif\n#ifndef SIG_DFL\n#define SIG_DFL ((__sighandler_t)0)\n#endif\n#ifndef SIG_ERR\n#define SIG_ERR ((__sighandler_t)-1)\n#endif\nstatic __sighandler_t signal(int sig, __sighandler_t handler) { (void)sig; (void)handler; return SIG_DFL; }\n__attribute__((weak)) int raise(int sig) { (void)sig; return 0; }\ntypedef long int __jmp_buf[8];\ntypedef struct { __jmp_buf __jmpbuf; int __mask_was_saved; } __jmp_buf_tag;\ntypedef __jmp_buf_tag jmp_buf[1];\nextern int setjmp(jmp_buf __env) __attribute__((__nothrow__));\n_Noreturn void longjmp(jmp_buf __env, int __val) __attribute__((__nothrow__));\n' + nimbaseContent + '\n';
+      cFilesData.push({ input: 'w' + idx + '.c', code: header + '/* ===== ' + f + ' ===== */\n' + cleaned + '\n' });
+    }
+
+    log('═══ C → wasm (clang + lld) ═══', 'step');
+    const so = [], se = [];
+    const ol = console.log, oe = console.error;
+    const grab = (a) => a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ').replace(/\x1b\[[0-9;]*m/g, '');
+    console.log = function (...a) { ol.apply(console, a); const t = grab(a); if (t.trim()) so.push(t); };
+    console.error = function (...a) { oe.apply(console, a); const t = grab(a); if (t.trim()) se.push(t); };
+    try { await clangModule.compileEachLink(cFilesData, 'app.wasm'); }
+    finally { console.log = ol; console.error = oe; }
+    se.forEach(c => c.split('\n').forEach(l => l && log(l, 'err')));
+
+    const r = await clangModule.getFile('app.wasm');
+    if (!r || !r.ok) throw new Error((r && r.error) || 'clang produced no app.wasm (see log)');
+    log(`[clang] linked app.wasm (${r.bytes.length} bytes)`, 'ok');
+    return r.bytes;
+  }
+
+  // ── recompile ─────────────────────────────────────────────────────────────
+  let busy = false, started = false;
+  async function recompile() {
+    if (busy) return;
+    if (!compilerReady) { log('[recompile] compiler not ready', 'err'); return; }
+    busy = true;
+    $('recompile').disabled = true;
+    setStatus('compiling…', 'busy');
+    clearLog();
+    const t = performance.now();
+    try {
+      const bytes = await compileToWasm(editorEl.value);
+      engine = await instantiateEngine(bytes);
+      engineMem = engine.exports.memory;
+      engine.exports.init(particleCount, W, H);
+      const dt = ((performance.now() - t) / 1000).toFixed(1);
+      setStatus('engine live · ' + dt + 's', 'ok');
+      log(`[ok] engine live in ${dt}s`, 'ok');
+      if (!started) { started = true; requestAnimationFrame(loop); }
+    } catch (e) {
+      setStatus('build failed', 'err');
+      log('[fail] ' + (e.message || e), 'err');
+    } finally {
+      busy = false;
+      $('recompile').disabled = false;
+    }
+  }
+
+  // ── save fork ─────────────────────────────────────────────────────────────
+  function saveFork() {
+    const edited = editorEl.value;
+    const re = /(<script\b[^>]*id="engine-src"[^>]*>)([\s\S]*?)(<\/script>)/;
+    if (!re.test(ORIGINAL_HTML)) { log('[fork] could not locate engine source block', 'err'); return; }
+    const html = ORIGINAL_HTML.replace(re, (m, a, b, c) => a + '\n' + edited + '\n' + c);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'nimparticles-fork.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    log('[fork] downloaded nimparticles-fork.html (' + html.length + ' bytes)', 'ok');
+  }
+
+  function showToolchainBanner() {
+    bannerEl.style.display = 'block';
+    bannerEl.innerHTML =
+      'Compiler toolchain not found at <code>./toolchain</code>. The simulation can\'t build until it\'s present.<br>' +
+      'From this file\'s folder run <code>./fetch-toolchain.sh</code>, then reload. ' +
+      'You also need to serve over <code>http://</code> (e.g. <code>python3 -m http.server</code>) - modules and wasm don\'t load from <code>file://</code>.';
+  }
+
+  // ── wiring ────────────────────────────────────────────────────────────────
+  canvas.addEventListener('mousemove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return;   // panel hidden -> ignore
+    mouse.x = (e.clientX - r.left) * (W / r.width);
+    mouse.y = (e.clientY - r.top) * (H / r.height);
+  });
+  canvas.addEventListener('mouseenter', () => { mouse.inside = true; });
+  canvas.addEventListener('mouseleave', () => { mouse.inside = false; });
+  canvas.addEventListener('mousedown', (e) => { e.preventDefault(); mouse.down = true; });
+  window.addEventListener('mouseup', () => { mouse.down = false; });
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  $('reset').addEventListener('click', () => { if (engine) engine.exports.init(particleCount, W, H); });
+  $('more').addEventListener('click', () => { particleCount = Math.min(8000, particleCount + 1000); if (engine) engine.exports.init(particleCount, W, H); });
+  $('less').addEventListener('click', () => { particleCount = Math.max(500, particleCount - 1000); if (engine) engine.exports.init(particleCount, W, H); });
+  $('recompile').addEventListener('click', recompile);
+  $('saveFork').addEventListener('click', saveFork);
+  editorEl.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); recompile(); } });
+  for (const chip of document.querySelectorAll('.chip')) {
+    chip.addEventListener('click', () => {
+      applyForce(chip.dataset.force);
+      document.querySelector('.tab[data-tab="src"]').click();
+      log('[force] loaded "' + chip.dataset.force + '" into the engine - press Recompile', 'info');
+    });
+  }
+
+  // ── boot ──────────────────────────────────────────────────────────────────
+  (async function boot() {
+    setStatus('loading compiler…', 'busy');
+    try {
+      await initCompiler();
+    } catch (e) {
+      setStatus('toolchain missing', 'err');
+      log('[boot] ' + (e.message || e), 'err');
+      showToolchainBanner();
+      return;
+    }
+    setStatus('compiling engine…', 'busy');
+    await recompile();
+  })();
+})();
+</script>
+</body>
+</html>

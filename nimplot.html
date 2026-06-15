@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NimPlot - forkware (Nim → JavaScript)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+         max-width: 980px; margin: 0 auto; padding: 22px 20px 60px;
+         background: #0d1117; color: #e6edf3; }
+  h1 { color: #f0883e; margin: 0 0 2px; font-size: 22px; }
+  .sub { color: #8b949e; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+  .sub b { color: #adbac7; }
+  a { color: #58a6ff; text-decoration: none; }
+
+  .topbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .pill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 11px; }
+  .pill.idle { background: #21262d; color: #8b949e; }
+  .pill.busy { background: #f0883e; color: #000; }
+  .pill.ok   { background: #2ea043; color: #fff; }
+  .pill.err  { background: #f85149; color: #fff; }
+  .grow { flex: 1; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid #21262d; margin-bottom: 14px; }
+  .tab { background: none; border: none; color: #8b949e; padding: 9px 14px; cursor: pointer;
+         font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent; }
+  .tab.active { color: #e6edf3; border-bottom-color: #f0883e; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  button.act { background: #238636; color: #fff; border: none; border-radius: 6px;
+               padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.act:hover:not(:disabled) { background: #2ea043; }
+  button.act.alt { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+  button.act.alt:hover:not(:disabled) { background: #30363d; }
+  button.act:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+
+  canvas { width: 100%; max-width: 760px; height: auto; border: 1px solid #30363d; border-radius: 8px;
+           background: #0d1117; display: block; }
+  .examples { margin-top: 16px; }
+  .eqlabel { color: #6e7681; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .chip { display: inline-block; background: #161b22; border: 1px solid #30363d; color: #adbac7;
+          border-radius: 14px; padding: 5px 12px; margin: 0 6px 8px 0; font-family: ui-monospace, monospace;
+          font-size: 12.5px; cursor: pointer; }
+  .chip:hover { border-color: #1f6feb; color: #e6edf3; }
+
+  textarea { width: 100%; height: 460px; background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+             border-radius: 6px; padding: 12px; font-family: ui-monospace, monospace; font-size: 12.5px;
+             line-height: 1.45; resize: vertical; tab-size: 2; }
+  textarea:focus { outline: none; border-color: #1f6feb; }
+  .srcbar { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+  .hint { color: #8b949e; font-size: 12px; }
+
+  pre#log { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px;
+            font-size: 12px; line-height: 1.5; max-height: 560px; overflow: auto; white-space: pre-wrap;
+            word-break: break-word; }
+  .l-info { color: #58a6ff; } .l-ok { color: #3fb950; } .l-err { color: #f85149; }
+  .l-out { color: #e6edf3; } .l-step { color: #f0883e; font-weight: 700; }
+
+  .banner { background: #2d1a0a; border: 1px solid #9e5a1e; color: #ffce99; border-radius: 8px;
+            padding: 12px 14px; margin-bottom: 14px; font-size: 13px; line-height: 1.5; display: none; }
+  .banner code { background: #1c1206; padding: 1px 5px; border-radius: 4px; }
+  .footer { color: #6e7681; font-size: 11px; margin-top: 26px; padding-top: 12px; border-top: 1px solid #21262d; }
+</style>
+</head>
+<body>
+
+<h1>NimPlot &nbsp;<span style="font-size:13px;color:#8b949e;font-weight:400;">forkware · Nim → JavaScript</span></h1>
+<div class="sub">
+  The graph below is drawn by a <b>Nim</b> program - but compiled through Nim's
+  <b>JavaScript</b> backend, in your browser, talking straight to the canvas via
+  the DOM (no WASM, no clang; just <code>nim js</code>). Open <b>Engine (Nim)</b>,
+  rewrite <code>f(x)</code> or the renderer, press <b>Recompile</b> - Nim → JS
+  happens client-side in ~1&nbsp;s and the curve redraws. Then <b>Save Fork</b>.
+</div>
+
+<div id="banner" class="banner"></div>
+
+<div class="topbar">
+  <span id="status" class="pill idle">loading…</span>
+  <span class="grow"></span>
+  <button id="saveFork" class="act alt" title="Download this document with your edited engine baked in">Save Fork ↧</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="plot">Plot</button>
+  <button class="tab" data-tab="src">Engine (Nim)</button>
+  <button class="tab" data-tab="log">Build log</button>
+</div>
+
+<!-- ── Plot ─────────────────────────────────────────────────────────────── -->
+<div class="panel active" id="panel-plot">
+  <canvas id="screen" width="760" height="360"></canvas>
+  <div class="examples">
+    <div class="eqlabel">Fork ideas - paste into the Engine tab's f(x), then Recompile</div>
+    <span class="chip">sin(x) * exp(-0.1 * x*x) * 3.0</span>
+    <span class="chip">x*x*x / 20.0 - x</span>
+    <span class="chip">abs(x) - 2.0 * cos(3.0*x)</span>
+    <span class="chip">3.0 * sin(x) / (1.0 + abs(x))</span>
+  </div>
+</div>
+
+<!-- ── Engine source ────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-src">
+  <div class="srcbar">
+    <button id="recompile" class="act">Recompile engine</button>
+    <span class="hint">Edit <code>f(x)</code>, the plot window, or the renderer, then recompile (Ctrl/Cmd+Enter). The first build downloads ~11&nbsp;MB of Nim compiler (cached afterwards).</span>
+  </div>
+  <textarea id="editor" spellcheck="false"></textarea>
+</div>
+
+<!-- ── Build log ────────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-log">
+  <pre id="log"><span class="l-info">[idle]</span></pre>
+</div>
+
+<div class="footer">
+  Pipeline: Nim 2.2.4 (running as WebAssembly) → <code>nim js</code> → JavaScript → run on this page's canvas.
+  Compiler by <a href="https://github.com/benagastov/Nim-WASM-Compiler" target="_blank" rel="noopener">benagastov/Nim-WASM-Compiler</a>.
+  The companion <a href="./unitcalc.html">unitcalc.html</a> shows the same idea via Nim's <b>C → WebAssembly</b> backend - one language, both engines.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     THE ENGINE. Real Nim, compiled to JavaScript in-browser and run to draw
+     the plot. Not executed as a page script - the shell reads it, runs it
+     through `nim js`, evaluates the result, and bakes it back into a fork.
+     ════════════════════════════════════════════════════════════════════════ -->
+<script type="text/x-nim" id="engine-src">
+## NimPlot engine - compiled to JavaScript in your browser (the `nim js`
+## backend), then run to draw on the canvas. Edit f(x), the plot window, or
+## the renderer, press "Recompile engine", and the graph changes - no server,
+## no reload. Then "Save Fork" to pass your version on as one .html file.
+
+import std/[math, jsffi]
+
+let doc {.importc: "document", nodecl.}: JsObject
+
+# ── the function to plot - edit me! ─────────────────────────────────────────
+proc f(x: float): float =
+  sin(x) * exp(-0.1 * x*x) * 3.0
+
+# ── plot window (fork these too) ────────────────────────────────────────────
+const
+  xMin = -10.0
+  xMax = 10.0
+  yMin = -3.5
+  yMax = 3.5
+  curveColor = "#f0883e"
+
+# ── renderer ────────────────────────────────────────────────────────────────
+proc draw() =
+  let cv = doc.getElementById(cstring"screen")
+  let ctx = cv.getContext(cstring"2d")
+  let w = cv.width.to(float)
+  let h = cv.height.to(float)
+
+  proc sx(x: float): float = (x - xMin) / (xMax - xMin) * w
+  proc sy(y: float): float = h - (y - yMin) / (yMax - yMin) * h
+
+  # background
+  ctx.fillStyle = cstring"#0d1117"
+  ctx.fillRect(0.0, 0.0, w, h)
+
+  # grid
+  ctx.strokeStyle = cstring"#21262d"
+  ctx.lineWidth = 1.0
+  var gx = ceil(xMin).int
+  while gx.float <= xMax:
+    ctx.beginPath()
+    ctx.moveTo(sx(gx.float), 0.0)
+    ctx.lineTo(sx(gx.float), h)
+    ctx.stroke()
+    inc gx
+  var gy = ceil(yMin).int
+  while gy.float <= yMax:
+    ctx.beginPath()
+    ctx.moveTo(0.0, sy(gy.float))
+    ctx.lineTo(w, sy(gy.float))
+    ctx.stroke()
+    inc gy
+
+  # axes
+  ctx.strokeStyle = cstring"#6e7681"
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.moveTo(0.0, sy(0.0)); ctx.lineTo(w, sy(0.0))
+  ctx.moveTo(sx(0.0), 0.0); ctx.lineTo(sx(0.0), h)
+  ctx.stroke()
+
+  # curve
+  ctx.strokeStyle = cstring(curveColor)
+  ctx.lineWidth = 2.5
+  ctx.beginPath()
+  let n = 800
+  var i = 0
+  var first = true
+  while i <= n:
+    let x = xMin + (xMax - xMin) * i.float / n.float
+    let y = f(x)
+    if y == y:                    # skip NaN gaps
+      let px = sx(x)
+      let py = sy(y)
+      if first:
+        ctx.moveTo(px, py)
+        first = false
+      else:
+        ctx.lineTo(px, py)
+    inc i
+  ctx.stroke()
+
+draw()
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     THE SHELL. Loads the Nim compiler (wasm) from ./toolchain/nim, compiles
+     the engine above with `nim js`, and runs the emitted JavaScript.
+     ════════════════════════════════════════════════════════════════════════ -->
+<script src="./toolchain/nim/nim-bundle.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const ORIGINAL_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const TOOLCHAIN = './toolchain';
+
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status'), bannerEl = $('banner');
+  const editorEl = $('editor'), logEl = $('log');
+
+  const ENGINE_SRC = $('engine-src').textContent.replace(/^\n/, '');
+  editorEl.value = ENGINE_SRC;
+
+  for (const tab of document.querySelectorAll('.tab')) {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      $('panel-' + tab.dataset.tab).classList.add('active');
+    });
+  }
+
+  function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = 'pill ' + (cls || 'idle'); }
+  function log(text, cls) {
+    const span = document.createElement('span');
+    span.className = 'l-' + (cls || 'info');
+    span.textContent = text + '\n';
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function clearLog() { logEl.textContent = ''; }
+
+  // ── nim runtime readiness ─────────────────────────────────────────────────
+  function loadNimReady() {
+    return new Promise((resolve, reject) => {
+      const started = performance.now();
+      (function poll() {
+        if (typeof window.FS !== 'undefined' && typeof window.callMain !== 'undefined') return resolve();
+        if (performance.now() - started > 60000) return reject(new Error('nim runtime did not initialise (toolchain missing?)'));
+        setTimeout(poll, 50);
+      })();
+    });
+  }
+  let compilerReady = false;
+  async function initCompiler() {
+    if (typeof window.callMain === 'undefined' && typeof window.FS === 'undefined') throw new Error('toolchain not found');
+    await loadNimReady();
+    await new Promise(r => setTimeout(r, 100));
+    compilerReady = true;
+    log('[init] nim runtime ready (js backend)', 'ok');
+  }
+
+  // ── compile bridge: Nim source -> JavaScript (nim js backend) ─────────────
+  function compileToJs(nimSource) {
+    let so = '', se = '';
+    const op = window.print, oe = window.printErr;
+    window.print = (t) => { so += t + '\n'; };
+    window.printErr = (t) => { se += t + '\n'; };
+    globalThis.__NIM_USER_CODE__ = nimSource;
+    globalThis.__NIM_USER_CODE_PENDING__ = nimSource;
+    globalThis.__NIM_USER_PATH__ = '/tmp/user.nim';
+    globalThis.__NIM_USER_CODE_WRITTEN__ = false;
+    const args = ['js', '--hints:off', '-d:release',
+                  '--path:/lib/pure', '--path:/lib/pure/collections', '--path:/lib/core',
+                  '-o:/tmp/out.js', '/tmp/user.nim'];
+    let rc = -1;
+    try { rc = window.callMain(args); }
+    catch (e) { se += 'callMain threw: ' + (e.message || e) + '\n'; }
+    window.print = op; window.printErr = oe;
+    if (so.trim()) so.trim().split('\n').forEach(l => l && log(l, 'out'));
+    if (se.trim()) se.trim().split('\n').forEach(l => l && log(l, 'err'));
+    if (rc !== 0) throw new Error('nim js failed (rc=' + rc + ') - see log');
+    let js = '';
+    try { js = window.FS.readFile('/tmp/out.js', { encoding: 'utf8' }); }
+    catch (e) { throw new Error('nim reported success but produced no out.js'); }
+    log('[nim] emitted ' + js.length + ' bytes of JavaScript', 'ok');
+    return js;
+  }
+
+  // ── recompile: source -> JS -> run (redraws the canvas) ───────────────────
+  let busy = false;
+  async function recompile() {
+    if (busy) return;
+    if (!compilerReady) { log('[recompile] compiler not ready', 'err'); return; }
+    busy = true;
+    $('recompile').disabled = true;
+    setStatus('compiling…', 'busy');
+    clearLog();
+    const t = performance.now();
+    try {
+      const js = compileToJs(editorEl.value);
+      // Run the Nim-generated module in its own function scope so re-running
+      // never clashes with a previous build's top-level declarations.
+      (new Function(js))();
+      const dt = ((performance.now() - t) / 1000).toFixed(1);
+      setStatus('plot live · ' + dt + 's', 'ok');
+      log('[ok] recompiled and redrew in ' + dt + 's', 'ok');
+    } catch (e) {
+      setStatus('build failed', 'err');
+      log('[fail] ' + (e.message || e), 'err');
+    } finally {
+      busy = false;
+      $('recompile').disabled = false;
+    }
+  }
+
+  // ── save fork ─────────────────────────────────────────────────────────────
+  function saveFork() {
+    const edited = editorEl.value;
+    const re = /(<script\b[^>]*id="engine-src"[^>]*>)([\s\S]*?)(<\/script>)/;
+    if (!re.test(ORIGINAL_HTML)) { log('[fork] could not locate engine source block', 'err'); return; }
+    const html = ORIGINAL_HTML.replace(re, (m, a, b, c) => a + '\n' + edited + '\n' + c);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'nimplot-fork.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    log('[fork] downloaded nimplot-fork.html (' + html.length + ' bytes)', 'ok');
+  }
+
+  function showToolchainBanner() {
+    bannerEl.style.display = 'block';
+    bannerEl.innerHTML =
+      'Nim compiler not found at <code>./toolchain/nim</code>. The plot can\'t build until it\'s present.<br>' +
+      'From this file\'s folder run <code>./fetch-toolchain.sh</code>, then reload. ' +
+      'You also need to serve over <code>http://</code> (e.g. <code>python3 -m http.server</code>) - modules and wasm don\'t load from <code>file://</code>.';
+  }
+
+  // ── wiring ────────────────────────────────────────────────────────────────
+  $('recompile').addEventListener('click', recompile);
+  $('saveFork').addEventListener('click', saveFork);
+  editorEl.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); recompile(); }
+  });
+  for (const chip of document.querySelectorAll('.chip')) {
+    chip.addEventListener('click', () => {
+      // drop the example expression into f(x) and jump to the editor
+      editorEl.value = editorEl.value.replace(
+        /(proc f\(x: float\): float =\n)(.*)/,
+        (m, head) => head + '  ' + chip.textContent);
+      document.querySelector('.tab[data-tab="src"]').click();
+    });
+  }
+
+  // ── boot ──────────────────────────────────────────────────────────────────
+  (async function boot() {
+    setStatus('loading compiler…', 'busy');
+    try {
+      await initCompiler();
+    } catch (e) {
+      setStatus('toolchain missing', 'err');
+      log('[boot] ' + (e.message || e), 'err');
+      showToolchainBanner();
+      return;
+    }
+    setStatus('compiling engine…', 'busy');
+    await recompile();
+  })();
+})();
+</script>
+</body>
+</html>

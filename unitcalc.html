@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UnitCalc - forkware</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+         max-width: 980px; margin: 0 auto; padding: 22px 20px 60px;
+         background: #0d1117; color: #e6edf3; }
+  h1 { color: #f0883e; margin: 0 0 2px; font-size: 22px; }
+  .sub { color: #8b949e; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+  .sub b { color: #adbac7; }
+  a { color: #58a6ff; text-decoration: none; }
+
+  .topbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .pill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 11px; }
+  .pill.idle { background: #21262d; color: #8b949e; }
+  .pill.busy { background: #f0883e; color: #000; }
+  .pill.ok   { background: #2ea043; color: #fff; }
+  .pill.err  { background: #f85149; color: #fff; }
+  .grow { flex: 1; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid #21262d; margin-bottom: 14px; }
+  .tab { background: none; border: none; color: #8b949e; padding: 9px 14px; cursor: pointer;
+         font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent; }
+  .tab.active { color: #e6edf3; border-bottom-color: #f0883e; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  button.act { background: #238636; color: #fff; border: none; border-radius: 6px;
+               padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.act:hover:not(:disabled) { background: #2ea043; }
+  button.act.alt { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+  button.act.alt:hover:not(:disabled) { background: #30363d; }
+  button.act:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+
+  .calc-row { display: flex; gap: 8px; margin: 6px 0 14px; }
+  #expr { flex: 1; background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+          border-radius: 6px; padding: 12px 14px; font-family: ui-monospace, monospace; font-size: 16px; }
+  #expr:focus { outline: none; border-color: #1f6feb; }
+  .result { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 18px 16px;
+            font-family: ui-monospace, monospace; font-size: 24px; min-height: 62px; word-break: break-word; }
+  .result.err { color: #ffa198; font-size: 16px; }
+  .eqlabel { color: #6e7681; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+
+  .examples { margin-top: 16px; }
+  .examples .eqlabel { margin-bottom: 8px; }
+  .chip { display: inline-block; background: #161b22; border: 1px solid #30363d; color: #adbac7;
+          border-radius: 14px; padding: 5px 12px; margin: 0 6px 8px 0; font-family: ui-monospace, monospace;
+          font-size: 12.5px; cursor: pointer; }
+  .chip:hover { border-color: #1f6feb; color: #e6edf3; }
+
+  textarea { width: 100%; height: 460px; background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+             border-radius: 6px; padding: 12px; font-family: ui-monospace, monospace; font-size: 12.5px;
+             line-height: 1.45; resize: vertical; tab-size: 2; }
+  textarea:focus { outline: none; border-color: #1f6feb; }
+  .srcbar { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+  .hint { color: #8b949e; font-size: 12px; }
+
+  pre#log { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px;
+            font-size: 12px; line-height: 1.5; max-height: 560px; overflow: auto; white-space: pre-wrap;
+            word-break: break-word; }
+  .l-info { color: #58a6ff; } .l-ok { color: #3fb950; } .l-err { color: #f85149; }
+  .l-out { color: #e6edf3; } .l-step { color: #f0883e; font-weight: 700; }
+
+  .banner { background: #2d1a0a; border: 1px solid #9e5a1e; color: #ffce99; border-radius: 8px;
+            padding: 12px 14px; margin-bottom: 14px; font-size: 13px; line-height: 1.5; display: none; }
+  .banner code { background: #1c1206; padding: 1px 5px; border-radius: 4px; }
+  .footer { color: #6e7681; font-size: 11px; margin-top: 26px; padding-top: 12px; border-top: 1px solid #21262d; }
+</style>
+</head>
+<body>
+
+<h1>UnitCalc &nbsp;<span style="font-size:13px;color:#8b949e;font-weight:400;">forkware</span></h1>
+<div class="sub">
+  A document that carries its own compiler. The calculator below is a real
+  <b>Nim</b> program, compiled to <b>WebAssembly</b> entirely in your browser.
+  Open the <b>Engine (Nim)</b> tab, change a unit factor or add a formula, press
+  <b>Recompile</b> - the tool rebuilds itself live. Then <b>Save Fork</b> to pass
+  your version on as one self-contained file. No server, no install, no account.
+</div>
+
+<div id="banner" class="banner"></div>
+
+<div class="topbar">
+  <span id="status" class="pill idle">loading…</span>
+  <span class="grow"></span>
+  <button id="saveFork" class="act alt" title="Download this document with your edited engine baked in">Save Fork ↧</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="calc">Calculator</button>
+  <button class="tab" data-tab="src">Engine (Nim)</button>
+  <button class="tab" data-tab="log">Build log</button>
+</div>
+
+<!-- ── Calculator ───────────────────────────────────────────────────────── -->
+<div class="panel active" id="panel-calc">
+  <div class="calc-row">
+    <input id="expr" autocomplete="off" spellcheck="false"
+           placeholder="e.g.  1 h + 1 min + 1 s" value="1 h + 1 min + 1 s">
+    <button id="compute" class="act">Compute</button>
+  </div>
+  <div class="eqlabel">Result</div>
+  <div id="result" class="result">-</div>
+
+  <div class="examples">
+    <div class="eqlabel">Try these - click to run</div>
+    <span class="chip">1 h + 1 min + 1 s</span>
+    <span class="chip">3 kN * 2 m to J</span>
+    <span class="chip">12 V / 4 ohm</span>
+    <span class="chip">sqrt(2) * 10 mm</span>
+    <span class="chip">kinetic(80 kg, 12 m / s) to kJ</span>
+    <span class="chip">stress(50 kN, 100 mm * 200 mm) to MPa</span>
+    <span class="chip">hoop(2 bar, 300 mm, 6 mm) to MPa</span>
+    <span class="chip">5 kW * 3 h to kWh</span>
+  </div>
+</div>
+
+<!-- ── Engine source ────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-src">
+  <div class="srcbar">
+    <button id="recompile" class="act">Recompile engine</button>
+    <span class="hint">Edit the unit table or a formula, then recompile. The first build downloads the ~70&nbsp;MB toolchain (cached afterwards).</span>
+  </div>
+  <textarea id="editor" spellcheck="false"></textarea>
+</div>
+
+<!-- ── Build log ────────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-log">
+  <pre id="log"><span class="l-info">[idle]</span></pre>
+</div>
+
+<div class="footer">
+  Pipeline: Nim 2.2.4 (wasm) → C → <code>clang</code> (wasm) → <code>wasm-ld</code> (wasm) → your engine.
+  Compiler toolchain by <a href="https://github.com/benagastov/Nim-WASM-Compiler" target="_blank" rel="noopener">benagastov/Nim-WASM-Compiler</a>.
+  The engine is instantiated with a built-in WASI shim and called through its exported <code>evalBuf</code>.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     THE ENGINE. This is real Nim source - the forkable, compiled core.
+     It is NOT executed as a script; the shell reads it, compiles it to wasm,
+     and bakes it back into a fork on save. Edit it in the Engine tab.
+     ════════════════════════════════════════════════════════════════════════ -->
+<script type="text/x-nim" id="engine-src">
+## UnitCalc engine - the compiled, forkable core of this document.
+##
+## This is REAL Nim. In the browser it is compiled Nim -> C -> WebAssembly and
+## then called live by the page. Edit the UNIT TABLE or the FORMULAS below,
+## press "Recompile engine", and the calculator changes behaviour with no
+## server, no toolchain install, no reload. Then "Save Fork" to pass your
+## version on as a single self-contained .html.
+
+import std/[math, strutils, parseutils]
+
+type
+  Dim = array[7, int]          ## exponents of the SI base units, in order:
+                               ## m, kg, s, A, K, mol, cd
+  Quantity = object
+    val: float
+    dim: Dim
+
+func d(m, kg, s, a, k, mol, cd: int): Dim =
+  [m, kg, s, a, k, mol, cd]
+
+const Dimless: Dim = [0, 0, 0, 0, 0, 0, 0]
+
+# UNIT TABLE - name, factor-to-SI-base, dimension. The obvious thing to fork:
+# change a factor, or add a row (psi and hp are here as examples), then Recompile.
+type UnitDef = object
+  name: string
+  factor: float
+  dim: Dim
+
+const units: seq[UnitDef] = @[
+  # length
+  UnitDef(name: "m",    factor: 1.0,        dim: d(1, 0, 0, 0, 0, 0, 0)),
+  UnitDef(name: "mm",   factor: 1e-3,       dim: d(1, 0, 0, 0, 0, 0, 0)),
+  UnitDef(name: "cm",   factor: 1e-2,       dim: d(1, 0, 0, 0, 0, 0, 0)),
+  UnitDef(name: "km",   factor: 1e3,        dim: d(1, 0, 0, 0, 0, 0, 0)),
+  UnitDef(name: "in",   factor: 0.0254,     dim: d(1, 0, 0, 0, 0, 0, 0)),
+  UnitDef(name: "ft",   factor: 0.3048,     dim: d(1, 0, 0, 0, 0, 0, 0)),
+  # mass
+  UnitDef(name: "kg",   factor: 1.0,        dim: d(0, 1, 0, 0, 0, 0, 0)),
+  UnitDef(name: "g",    factor: 1e-3,       dim: d(0, 1, 0, 0, 0, 0, 0)),
+  UnitDef(name: "t",    factor: 1e3,        dim: d(0, 1, 0, 0, 0, 0, 0)),
+  # time
+  UnitDef(name: "s",    factor: 1.0,        dim: d(0, 0, 1, 0, 0, 0, 0)),
+  UnitDef(name: "ms",   factor: 1e-3,       dim: d(0, 0, 1, 0, 0, 0, 0)),
+  UnitDef(name: "min",  factor: 60.0,       dim: d(0, 0, 1, 0, 0, 0, 0)),
+  UnitDef(name: "h",    factor: 3600.0,     dim: d(0, 0, 1, 0, 0, 0, 0)),
+  # current / temperature / amount
+  UnitDef(name: "A",    factor: 1.0,        dim: d(0, 0, 0, 1, 0, 0, 0)),
+  UnitDef(name: "mA",   factor: 1e-3,       dim: d(0, 0, 0, 1, 0, 0, 0)),
+  UnitDef(name: "K",    factor: 1.0,        dim: d(0, 0, 0, 0, 1, 0, 0)),
+  UnitDef(name: "mol",  factor: 1.0,        dim: d(0, 0, 0, 0, 0, 1, 0)),
+  # force
+  UnitDef(name: "N",    factor: 1.0,        dim: d(1, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "kN",   factor: 1e3,        dim: d(1, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "MN",   factor: 1e6,        dim: d(1, 1, -2, 0, 0, 0, 0)),
+  # pressure / stress
+  UnitDef(name: "Pa",   factor: 1.0,        dim: d(-1, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "kPa",  factor: 1e3,        dim: d(-1, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "MPa",  factor: 1e6,        dim: d(-1, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "GPa",  factor: 1e9,        dim: d(-1, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "bar",  factor: 1e5,        dim: d(-1, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "psi",  factor: 6894.757,   dim: d(-1, 1, -2, 0, 0, 0, 0)),
+  # energy
+  UnitDef(name: "J",    factor: 1.0,        dim: d(2, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "kJ",   factor: 1e3,        dim: d(2, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "MJ",   factor: 1e6,        dim: d(2, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "Wh",   factor: 3600.0,     dim: d(2, 1, -2, 0, 0, 0, 0)),
+  UnitDef(name: "kWh",  factor: 3.6e6,      dim: d(2, 1, -2, 0, 0, 0, 0)),
+  # power
+  UnitDef(name: "W",    factor: 1.0,        dim: d(2, 1, -3, 0, 0, 0, 0)),
+  UnitDef(name: "kW",   factor: 1e3,        dim: d(2, 1, -3, 0, 0, 0, 0)),
+  UnitDef(name: "MW",   factor: 1e6,        dim: d(2, 1, -3, 0, 0, 0, 0)),
+  UnitDef(name: "hp",   factor: 745.7,      dim: d(2, 1, -3, 0, 0, 0, 0)),
+  # electrical
+  UnitDef(name: "V",    factor: 1.0,        dim: d(2, 1, -3, -1, 0, 0, 0)),
+  UnitDef(name: "mV",   factor: 1e-3,       dim: d(2, 1, -3, -1, 0, 0, 0)),
+  UnitDef(name: "kV",   factor: 1e3,        dim: d(2, 1, -3, -1, 0, 0, 0)),
+  UnitDef(name: "ohm",  factor: 1.0,        dim: d(2, 1, -3, -2, 0, 0, 0)),
+  UnitDef(name: "kohm", factor: 1e3,        dim: d(2, 1, -3, -2, 0, 0, 0)),
+  UnitDef(name: "Mohm", factor: 1e6,        dim: d(2, 1, -3, -2, 0, 0, 0)),
+  UnitDef(name: "Hz",   factor: 1.0,        dim: d(0, 0, -1, 0, 0, 0, 0)),
+  UnitDef(name: "kHz",  factor: 1e3,        dim: d(0, 0, -1, 0, 0, 0, 0)),
+]
+
+# Named constants usable in expressions.
+type ConstDef = object
+  name: string
+  q: Quantity
+
+const consts: seq[ConstDef] = @[
+  ConstDef(name: "pi",   q: Quantity(val: PI,      dim: Dimless)),
+  ConstDef(name: "e",    q: Quantity(val: E,       dim: Dimless)),
+  ConstDef(name: "grav", q: Quantity(val: 9.80665, dim: d(1, 0, -2, 0, 0, 0, 0))),
+]
+
+# Preferred display name for a few common derived dimensions.
+const preferred: seq[tuple[dm: Dim, name: string]] = @[
+  (d(1, 1, -2, 0, 0, 0, 0),  "N"),
+  (d(-1, 1, -2, 0, 0, 0, 0), "Pa"),
+  (d(2, 1, -2, 0, 0, 0, 0),  "J"),
+  (d(2, 1, -3, 0, 0, 0, 0),  "W"),
+  (d(2, 1, -3, -1, 0, 0, 0), "V"),
+  (d(2, 1, -3, -2, 0, 0, 0), "ohm"),
+  (d(0, 0, 1, 1, 0, 0, 0),   "C"),
+  (d(0, 0, -1, 0, 0, 0, 0),  "Hz"),
+]
+
+# error channel (no exceptions cross the parser; safest for wasm)
+var gErr: string = ""
+proc fail(msg: string) =
+  if gErr.len == 0: gErr = msg
+
+# dimension helpers
+proc addDim(a, b: Dim): Dim =
+  for i in 0 .. 6: result[i] = a[i] + b[i]
+proc subDim(a, b: Dim): Dim =
+  for i in 0 .. 6: result[i] = a[i] - b[i]
+proc mulDim(a: Dim, n: int): Dim =
+  for i in 0 .. 6: result[i] = a[i] * n
+proc eqDim(a, b: Dim): bool =
+  for i in 0 .. 6:
+    if a[i] != b[i]: return false
+  true
+proc isDimless(a: Dim): bool = eqDim(a, Dimless)
+
+# lookups
+proc findUnit(name: string, u: var UnitDef): bool =
+  for it in units:
+    if it.name == name:
+      u = it
+      return true
+  false
+proc findConst(name: string, q: var Quantity): bool =
+  for it in consts:
+    if it.name == name:
+      q = it.q
+      return true
+  false
+
+# quantity arithmetic
+proc qadd(a, b: Quantity): Quantity =
+  if not eqDim(a.dim, b.dim): fail("cannot add incompatible units"); return
+  Quantity(val: a.val + b.val, dim: a.dim)
+proc qsub(a, b: Quantity): Quantity =
+  if not eqDim(a.dim, b.dim): fail("cannot subtract incompatible units"); return
+  Quantity(val: a.val - b.val, dim: a.dim)
+proc qmul(a, b: Quantity): Quantity =
+  Quantity(val: a.val * b.val, dim: addDim(a.dim, b.dim))
+proc qdiv(a, b: Quantity): Quantity =
+  if b.val == 0.0: fail("division by zero"); return
+  Quantity(val: a.val / b.val, dim: subDim(a.dim, b.dim))
+proc qpow(a: Quantity, n: int): Quantity =
+  Quantity(val: pow(a.val, n.float), dim: mulDim(a.dim, n))
+
+# functions and formulas - add your own as another `of "name":` branch.
+proc qfunc(name: string, args: seq[Quantity]): Quantity =
+  case name
+  of "sqrt":
+    if args.len != 1: fail("sqrt expects 1 argument"); return
+    let a = args[0]
+    var hd: Dim
+    for i in 0 .. 6:
+      if a.dim[i] mod 2 != 0: fail("sqrt needs even unit exponents"); return
+      hd[i] = a.dim[i] div 2
+    if a.val < 0.0: fail("sqrt of a negative value"); return
+    return Quantity(val: sqrt(a.val), dim: hd)
+  of "abs":
+    if args.len != 1: fail("abs expects 1 argument"); return
+    return Quantity(val: abs(args[0].val), dim: args[0].dim)
+  of "sin", "cos", "tan", "asin", "acos", "atan", "exp", "ln", "log10":
+    if args.len != 1: fail(name & " expects 1 argument"); return
+    if not isDimless(args[0].dim): fail(name & " needs a dimensionless argument"); return
+    let x = args[0].val
+    var r = 0.0
+    case name
+    of "sin": r = sin(x)
+    of "cos": r = cos(x)
+    of "tan": r = tan(x)
+    of "asin": r = arcsin(x)
+    of "acos": r = arccos(x)
+    of "atan": r = arctan(x)
+    of "exp": r = exp(x)
+    of "ln": r = ln(x)
+    of "log10": r = log10(x)
+    else: discard
+    return Quantity(val: r, dim: Dimless)
+  # engineering formulas (multi-argument) - edit / add your own
+  of "hypot":
+    if args.len != 2: fail("hypot expects 2 arguments"); return
+    if not eqDim(args[0].dim, args[1].dim): fail("hypot needs matching units"); return
+    return Quantity(val: hypot(args[0].val, args[1].val), dim: args[0].dim)
+  of "stress":                 # force / area
+    if args.len != 2: fail("stress(force, area) expects 2 arguments"); return
+    return qdiv(args[0], args[1])
+  of "kinetic":                # 1/2 m v^2
+    if args.len != 2: fail("kinetic(mass, velocity) expects 2 arguments"); return
+    return qmul(Quantity(val: 0.5, dim: Dimless), qmul(args[0], qpow(args[1], 2)))
+  of "hoop":                   # thin-wall hoop stress: p r / t
+    if args.len != 3: fail("hoop(pressure, radius, thickness) expects 3 arguments"); return
+    return qdiv(qmul(args[0], args[1]), args[2])
+  else:
+    fail("unknown function: " & name)
+    return
+
+# tokenizer
+type
+  TokKind = enum tkNum, tkIdent, tkKw, tkOp, tkEnd
+  Token = object
+    kind: TokKind
+    num: float
+    text: string
+
+proc tokenize(s: string): seq[Token] =
+  var i = 0
+  let n = s.len
+  while i < n:
+    let c = s[i]
+    if c in {' ', '\t', '\r', '\n'}:
+      inc i
+      continue
+    if c in {'0' .. '9'} or (c == '.' and i + 1 < n and s[i+1] in {'0' .. '9'}):
+      var j = i
+      while j < n and s[j] in {'0' .. '9', '.'}: inc j
+      if j < n and (s[j] == 'e' or s[j] == 'E'):
+        var k = j + 1
+        if k < n and (s[k] == '+' or s[k] == '-'): inc k
+        if k < n and s[k] in {'0' .. '9'}:
+          j = k
+          while j < n and s[j] in {'0' .. '9'}: inc j
+      let numStr = s[i ..< j]
+      var f = 0.0
+      if parseFloat(numStr, f) == 0:
+        fail("bad number: " & numStr)
+        return
+      result.add Token(kind: tkNum, num: f)
+      i = j
+      continue
+    if c in {'a' .. 'z', 'A' .. 'Z', '_'}:
+      var j = i
+      while j < n and s[j] in {'a' .. 'z', 'A' .. 'Z', '0' .. '9', '_'}: inc j
+      let id = s[i ..< j]
+      if id == "to" or id == "as":
+        result.add Token(kind: tkKw, text: id)
+      else:
+        result.add Token(kind: tkIdent, text: id)
+      i = j
+      continue
+    if c in {'+', '-', '*', '/', '^', '(', ')', ','}:
+      result.add Token(kind: tkOp, text: $c)
+      inc i
+      continue
+    fail("unexpected character: " & $c)
+    return
+  result.add Token(kind: tkEnd)
+
+# recursive-descent parser / evaluator
+type Parser = object
+  toks: seq[Token]
+  pos: int
+
+proc cur(p: var Parser): Token = p.toks[p.pos]
+proc advance(p: var Parser) = inc p.pos
+
+proc parseExpr(p: var Parser): Quantity   # forward declaration
+
+proc parsePrimary(p: var Parser): Quantity =
+  let t = cur(p)
+  case t.kind
+  of tkNum:
+    advance(p)
+    return Quantity(val: t.num, dim: Dimless)
+  of tkOp:
+    if t.text == "(":
+      advance(p)
+      let inner = parseExpr(p)
+      if gErr.len > 0: return
+      if cur(p).kind == tkOp and cur(p).text == ")":
+        advance(p)
+      else:
+        fail("missing )")
+      return inner
+    else:
+      fail("unexpected '" & t.text & "'")
+      return
+  of tkIdent:
+    let name = t.text
+    advance(p)
+    if cur(p).kind == tkOp and cur(p).text == "(":     # function call
+      advance(p)
+      var args: seq[Quantity] = @[]
+      if not (cur(p).kind == tkOp and cur(p).text == ")"):
+        while true:
+          let a = parseExpr(p)
+          if gErr.len > 0: return
+          args.add a
+          if cur(p).kind == tkOp and cur(p).text == ",":
+            advance(p)
+            continue
+          break
+      if cur(p).kind == tkOp and cur(p).text == ")":
+        advance(p)
+      else:
+        fail("missing ) in call to " & name)
+        return
+      return qfunc(name, args)
+    var ud: UnitDef
+    var cq: Quantity
+    if findUnit(name, ud):
+      return Quantity(val: ud.factor, dim: ud.dim)
+    elif findConst(name, cq):
+      return cq
+    else:
+      fail("unknown name: " & name)
+      return
+  else:
+    fail("unexpected end of input")
+    return
+
+proc parsePostfix(p: var Parser): Quantity =
+  # implicit multiply by a trailing unit, so "3 kN" and "9.81 m" work.
+  var q = parsePrimary(p)
+  if gErr.len > 0: return
+  while cur(p).kind == tkIdent:
+    let nm = cur(p).text
+    var ud: UnitDef
+    if not findUnit(nm, ud): break
+    if p.toks[p.pos + 1].kind == tkOp and p.toks[p.pos + 1].text == "(":
+      break   # it is actually a function call; leave it
+    advance(p)
+    q = qmul(q, Quantity(val: ud.factor, dim: ud.dim))
+    if gErr.len > 0: return
+  return q
+
+proc parsePower(p: var Parser): Quantity =
+  var base = parsePostfix(p)
+  if gErr.len > 0: return
+  if cur(p).kind == tkOp and cur(p).text == "^":
+    advance(p)
+    var neg = false
+    if cur(p).kind == tkOp and (cur(p).text == "-" or cur(p).text == "+"):
+      neg = cur(p).text == "-"
+      advance(p)
+    if cur(p).kind != tkNum:
+      fail("exponent must be an integer")
+      return
+    let e = cur(p).num
+    advance(p)
+    if e != floor(e):
+      fail("exponent must be an integer")
+      return
+    var ei = int(e)
+    if neg: ei = -ei
+    base = qpow(base, ei)
+  return base
+
+proc parseUnary(p: var Parser): Quantity =
+  if cur(p).kind == tkOp and (cur(p).text == "-" or cur(p).text == "+"):
+    let neg = cur(p).text == "-"
+    advance(p)
+    var q = parseUnary(p)
+    if gErr.len > 0: return
+    if neg: q.val = -q.val
+    return q
+  return parsePower(p)
+
+proc parseMul(p: var Parser): Quantity =
+  var a = parseUnary(p)
+  if gErr.len > 0: return
+  while cur(p).kind == tkOp and (cur(p).text == "*" or cur(p).text == "/"):
+    let op = cur(p).text
+    advance(p)
+    let b = parseUnary(p)
+    if gErr.len > 0: return
+    if op == "*": a = qmul(a, b)
+    else: a = qdiv(a, b)
+    if gErr.len > 0: return
+  return a
+
+proc parseAdd(p: var Parser): Quantity =
+  var a = parseMul(p)
+  if gErr.len > 0: return
+  while cur(p).kind == tkOp and (cur(p).text == "+" or cur(p).text == "-"):
+    let op = cur(p).text
+    advance(p)
+    let b = parseMul(p)
+    if gErr.len > 0: return
+    if op == "+": a = qadd(a, b)
+    else: a = qsub(a, b)
+    if gErr.len > 0: return
+  return a
+
+proc parseExpr(p: var Parser): Quantity =
+  parseAdd(p)
+
+# formatting
+proc niceNum(x: float): string =
+  if x == 0.0: return "0"
+  # 12 significant digits absorbs the floating-point noise that full
+  # round-trip printing would expose; then trim the padded trailing zeros.
+  result = formatFloat(x, ffDefault, 12)
+  if ('e' notin result) and ('E' notin result) and ('.' in result):
+    var last = result.len - 1
+    while last > 0 and result[last] == '0': dec last
+    if result[last] == '.': dec last
+    result.setLen(last + 1)
+
+proc dimString(dm: Dim): string =
+  const bases = ["m", "kg", "s", "A", "K", "mol", "cd"]
+  var parts: seq[string] = @[]
+  for i in 0 .. 6:
+    if dm[i] != 0:
+      if dm[i] == 1: parts.add bases[i]
+      else: parts.add bases[i] & "^" & $dm[i]
+  result = parts.join("*")
+
+proc preferredName(dm: Dim): string =
+  for it in preferred:
+    if eqDim(it.dm, dm): return it.name
+  return ""
+
+proc formatQ(q: Quantity): string =
+  if isDimless(q.dim): return niceNum(q.val)
+  let pn = preferredName(q.dim)
+  if pn.len > 0: return niceNum(q.val) & " " & pn
+  return niceNum(q.val) & " " & dimString(q.dim)
+
+proc evalToString(input: string): string =
+  gErr = ""
+  let trimmed = input.strip()
+  if trimmed.len == 0: return ""
+  let toks = tokenize(trimmed)
+  if gErr.len > 0: return "Error: " & gErr
+  var p = Parser(toks: toks, pos: 0)
+  let q = parseExpr(p)
+  if gErr.len > 0: return "Error: " & gErr
+  if cur(p).kind == tkKw:                 # optional "to"/"as" <unit> conversion
+    advance(p)
+    if cur(p).kind != tkIdent:
+      return "Error: expected a unit after 'to'"
+    let uname = cur(p).text
+    advance(p)
+    var ud: UnitDef
+    if not findUnit(uname, ud):
+      return "Error: unknown unit: " & uname
+    if not eqDim(ud.dim, q.dim):
+      return "Error: cannot convert " & dimString(q.dim) & " to " & uname
+    if cur(p).kind != tkEnd:
+      return "Error: unexpected input after conversion"
+    return niceNum(q.val / ud.factor) & " " & uname
+  if cur(p).kind != tkEnd:
+    return "Error: unexpected token near end of input"
+  return formatQ(q)
+
+# exports: the only surface the JS shell touches
+var ioBuf: array[1 shl 16, char]        # 64 KB shared I/O buffer
+
+proc bufAddr(): pointer {.exportc, used,
+    codegenDecl: "__attribute__((export_name(\"bufAddr\"), used)) $# $#$#".} =
+  cast[pointer](addr ioBuf[0])
+
+proc evalBuf(n: cint): cint {.exportc, used,
+    codegenDecl: "__attribute__((export_name(\"evalBuf\"), used)) $# $#$#".} =
+  let m = n.int
+  var s = newString(m)
+  if m > 0:
+    copyMem(addr s[0], addr ioBuf[0], m)
+  let res = evalToString(s)
+  var outLen = res.len
+  if outLen > ioBuf.len: outLen = ioBuf.len
+  if outLen > 0:
+    copyMem(addr ioBuf[0], unsafeAddr res[0], outLen)
+  result = outLen.cint
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     THE SHELL. Loads the Nim->wasm toolchain from ./toolchain, compiles the
+     engine above, instantiates it with a WASI shim, and drives the UI.
+     ════════════════════════════════════════════════════════════════════════ -->
+<script src="./toolchain/nim/nim-bundle.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  // Self-replication: capture the document exactly as shipped, before any
+  // runtime mutation. Save Fork rewrites only the embedded engine source.
+  const ORIGINAL_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const TOOLCHAIN = './toolchain';
+
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status'), bannerEl = $('banner');
+  const exprEl = $('expr'), resultEl = $('result'), logEl = $('log');
+  const editorEl = $('editor');
+
+  // ── editor seeded from the embedded (non-executed) engine source ──────────
+  const ENGINE_SRC = $('engine-src').textContent.replace(/^\n/, '');
+  editorEl.value = ENGINE_SRC;
+
+  // ── tabs ──────────────────────────────────────────────────────────────────
+  for (const tab of document.querySelectorAll('.tab')) {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      $('panel-' + tab.dataset.tab).classList.add('active');
+    });
+  }
+
+  // ── status + logging ──────────────────────────────────────────────────────
+  function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = 'pill ' + (cls || 'idle'); }
+  function log(text, cls) {
+    const span = document.createElement('span');
+    span.className = 'l-' + (cls || 'info');
+    span.textContent = text + '\n';
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function clearLog() { logEl.textContent = ''; }
+
+  // ── WASI shim: enough of preview1 / "unstable" to instantiate the engine ──
+  //   (adapted from the Nim-WASM-Compiler standalone template). We do not run
+  //   _start as a program; we keep the instance and call our exported funcs.
+  function instantiateEngine(bytes) {
+    return WebAssembly.compile(bytes).then((module) => {
+      const ENC = new TextEncoder();
+      const memRef = { mem: null };
+      const u8 = () => new Uint8Array(memRef.mem.buffer);
+      const dv = () => new DataView(memRef.mem.buffer);
+      const SUCCESS = 0, BADF = 8;
+      const out = { stdout: [], stderr: [] };
+      function ProcExit(code) { this.code = code; this.__procExit = true; }
+
+      function writeIovs(fd, iovsPtr, iovsLen, nwrittenPtr) {
+        const view = dv(); let total = 0;
+        for (let i = 0; i < iovsLen; i++) {
+          const p = iovsPtr + i * 8;
+          const buf = view.getUint32(p, true), len = view.getUint32(p + 4, true);
+          if (len > 0) { out[fd === 2 ? 'stderr' : 'stdout'].push(u8().slice(buf, buf + len)); total += len; }
+        }
+        view.setUint32(nwrittenPtr, total, true);
+        return SUCCESS;
+      }
+      const impl = {
+        proc_exit(code) { throw new ProcExit(code); },
+        fd_write(fd, p, n, w) { return writeIovs(fd, p, n, w); },
+        fd_read(_fd, _i, _n, nreadPtr) { dv().setUint32(nreadPtr, 0, true); return SUCCESS; },
+        fd_close() { return SUCCESS; },
+        fd_seek(_fd, _lo, _hi, _w, newOffPtr) {
+          if (typeof newOffPtr === 'number') { dv().setUint32(newOffPtr, 0, true); dv().setUint32(newOffPtr + 4, 0, true); }
+          return SUCCESS;
+        },
+        fd_fdstat_get(_fd, buf) {
+          const v = dv(); v.setUint8(buf, 2); v.setUint16(buf + 2, 0, true);
+          v.setBigUint64(buf + 8, 0xffffffffffffffffn, true);
+          v.setBigUint64(buf + 16, 0xffffffffffffffffn, true);
+          return SUCCESS;
+        },
+        fd_prestat_get() { return BADF; },
+        fd_prestat_dir_name() { return BADF; },
+        args_sizes_get(a, b) { const v = dv(); v.setUint32(a, 1, true); v.setUint32(b, ENC.encode('engine').length + 1, true); return SUCCESS; },
+        args_get(argvPtr, bufPtr) { dv().setUint32(argvPtr, bufPtr, true); u8().set(ENC.encode('engine\0'), bufPtr); return SUCCESS; },
+        environ_sizes_get(a, b) { const v = dv(); v.setUint32(a, 0, true); v.setUint32(b, 0, true); return SUCCESS; },
+        environ_get() { return SUCCESS; },
+        clock_time_get(_id, _p, t) { dv().setBigUint64(t, BigInt(Date.now()) * 1000000n, true); return SUCCESS; },
+        clock_res_get(_id, r) { dv().setBigUint64(r, 1000000n, true); return SUCCESS; },
+        random_get(buf, len) {
+          const b = u8().subarray(buf, buf + len);
+          if (globalThis.crypto && crypto.getRandomValues)
+            for (let o = 0; o < len; o += 65536) crypto.getRandomValues(b.subarray(o, Math.min(o + 65536, len)));
+          else for (let i = 0; i < len; i++) b[i] = (Math.random() * 256) | 0;
+          return SUCCESS;
+        },
+        poll_oneoff(_i, _o, _n, neventsPtr) { dv().setUint32(neventsPtr, 0, true); return SUCCESS; },
+        sched_yield() { return SUCCESS; },
+      };
+      const imports = {};
+      for (const { module: mod, name, kind } of WebAssembly.Module.imports(module)) {
+        imports[mod] = imports[mod] || {};
+        if (kind === 'function') imports[mod][name] = impl[name] || (() => 0);
+      }
+      return WebAssembly.instantiate(module, imports).then((instance) => {
+        memRef.mem = instance.exports.memory;
+        // Initialise the Nim runtime without running the program to exit.
+        try {
+          if (typeof instance.exports.NimMain === 'function') instance.exports.NimMain();
+          else if (typeof instance.exports._start === 'function') instance.exports._start();
+        } catch (e) { if (!(e && e.__procExit)) throw e; }
+        if (typeof instance.exports.evalBuf !== 'function' || typeof instance.exports.bufAddr !== 'function')
+          throw new Error('engine is missing evalBuf/bufAddr exports - the linker may have stripped them');
+        return instance;
+      });
+    });
+  }
+
+  // ── live engine handle ────────────────────────────────────────────────────
+  let engine = null, engineMem = null, bufPtr = 0;
+
+  function evaluate(expr) {
+    if (!engine) return '(engine not compiled yet)';
+    const enc = new TextEncoder();
+    const bytes = enc.encode(expr);
+    if (bytes.length > 65535) return 'Error: expression too long';
+    new Uint8Array(engineMem.buffer).set(bytes, bufPtr);     // write input
+    const n = engine.exports.evalBuf(bytes.length);          // compute
+    const outBytes = new Uint8Array(engineMem.buffer, bufPtr, n); // read result
+    return new TextDecoder().decode(outBytes);
+  }
+
+  function doCompute() {
+    const expr = exprEl.value.trim();
+    if (!expr) { resultEl.textContent = '-'; resultEl.classList.remove('err'); return; }
+    const out = evaluate(expr);
+    resultEl.textContent = (out === '' ? '-' : out);
+    resultEl.classList.toggle('err', out.startsWith('Error') || out.startsWith('('));
+  }
+
+  // ── compiler bridge: Nim source -> app.wasm bytes (ports the demo pipeline) ─
+  let clangModule = null, compilerReady = false;
+
+  function loadNimReady() {
+    return new Promise((resolve, reject) => {
+      const started = performance.now();
+      (function poll() {
+        if (typeof window.FS !== 'undefined' && typeof window.callMain !== 'undefined') return resolve();
+        if (performance.now() - started > 60000) return reject(new Error('nim runtime did not initialise (toolchain missing?)'));
+        setTimeout(poll, 50);
+      })();
+    });
+  }
+
+  async function initCompiler() {
+    if (typeof window.callMain === 'undefined' && typeof window.FS === 'undefined') {
+      // nim-bundle.js itself failed to load (no toolchain folder).
+      throw new Error('toolchain not found');
+    }
+    await loadNimReady();
+    await new Promise(r => setTimeout(r, 150));
+    log('[init] nim runtime ready, loading clang.js…', 'info');
+    clangModule = await import(`${TOOLCHAIN}/clang/clang.js`);
+    const CLANG_DIST = new URL(`${TOOLCHAIN}/clang`, window.location.href).href.replace(/\/$/, '');
+    await clangModule.init({ path: CLANG_DIST });
+    compilerReady = true;
+    log('[init] clang.js ready', 'ok');
+  }
+
+  async function compileToWasm(nimSource) {
+    // STEP 1 - Nim -> C (the gcc step fails by design; we want the .c files).
+    log('═══ Nim → C ═══', 'step');
+    let nimRc = 0;
+    {
+      let so = '', se = '';
+      const op = window.print, oe = window.printErr;
+      window.print = (t) => { so += t + '\n'; };
+      window.printErr = (t) => { se += t + '\n'; };
+      // nim-bundle.js materialises these globals into MEMFS before main runs.
+      globalThis.__NIM_USER_CODE__ = nimSource;
+      globalThis.__NIM_USER_CODE_PENDING__ = nimSource;
+      globalThis.__NIM_USER_PATH__ = '/tmp/user.nim';
+      globalThis.__NIM_USER_CODE_WRITTEN__ = false;
+      const nimArgs = ['c', '--hints:off', '-d:release', '-d:useMalloc',
+                       '--path:/lib/pure', '--path:/lib/pure/collections', '--path:/lib/core',
+                       '-o:/tmp/user', '/tmp/user.nim'];
+      try { nimRc = window.callMain(nimArgs); }
+      catch (e) { log('[nim] callMain threw: ' + (e.message || e), 'err'); nimRc = -1; }
+      window.print = op; window.printErr = oe;
+      if (se.trim()) se.trim().split('\n').forEach(l => l && log(l, 'err'));
+    }
+    log(`[nim] returned ${nimRc} (gcc failure expected; .c files are in MEMFS)`, 'info');
+
+    // STEP 1b - collect generated C and apply the wasi/clang header shims.
+    log('═══ collect C from nim cache ═══', 'step');
+    const cacheDir = '/home/web_user/.cache/nim/user_r';
+    const entries = window.FS.readdir(cacheDir);
+    const cFiles = entries.filter(f => f.endsWith('.nim.c') || f.endsWith('.nim.cpp')).sort();
+    if (cFiles.length === 0) throw new Error('no .c files in nim cache - the Nim compile failed (see log above)');
+    log(`[nim] ${cFiles.length} translation units`, 'info');
+
+    let nimbaseContent = '';
+    try { nimbaseContent = await (await fetch(`${TOOLCHAIN}/nim/nimbase.h`)).text(); }
+    catch (e) { log('[nim] could not fetch nimbase.h: ' + e.message, 'err'); }
+
+    const cFilesData = [];
+    for (let idx = 0; idx < cFiles.length; idx++) {
+      const f = cFiles[idx];
+      const c = window.FS.readFile(cacheDir + '/' + f, { encoding: 'utf8' });
+      const cleaned = c
+        .split('\n')
+        .filter(line => !/^#include\s+["<](?:\/lib\/)?nimbase\.h[">]\s*$/.test(line))
+        .filter(line => !/^#define NIM_INTBITS/.test(line))
+        .filter(line => !/^#define NIM_EmulateOverflowChecks/.test(line))
+        .filter(line => !/^#undef (LANGUAGE_C|MIPSEB|MIPSEL|PPC|R3000|R4000|i386|linux|mips|near|far|powerpc|unix)\s*$/.test(line))
+        .join('\n')
+        .replace(/int main\(int (\w+), char\*\* (\w+), char\*\* (\w+)\) \{/, 'int main(int $1, char** $2) {\n\tchar** $3 = (char**)0;');
+      const header = '/* Combined header */\n#define NIM_INTBITS 32\n#define NIM_EmulateOverflowChecks\n#include <signal.h>\n#include <string.h>\ntypedef void (*__sighandler_t)(int);\n#ifndef SIG_IGN\n#define SIG_IGN ((__sighandler_t)1)\n#endif\n#ifndef SIG_DFL\n#define SIG_DFL ((__sighandler_t)0)\n#endif\n#ifndef SIG_ERR\n#define SIG_ERR ((__sighandler_t)-1)\n#endif\nstatic __sighandler_t signal(int sig, __sighandler_t handler) { (void)sig; (void)handler; return SIG_DFL; }\n__attribute__((weak)) int raise(int sig) { (void)sig; return 0; }\ntypedef long int __jmp_buf[8];\ntypedef struct { __jmp_buf __jmpbuf; int __mask_was_saved; } __jmp_buf_tag;\ntypedef __jmp_buf_tag jmp_buf[1];\nextern int setjmp(jmp_buf __env) __attribute__((__nothrow__));\n_Noreturn void longjmp(jmp_buf __env, int __val) __attribute__((__nothrow__));\n' + nimbaseContent + '\n';
+      cFilesData.push({ input: 'w' + idx + '.c', code: header + '/* ===== ' + f + ' ===== */\n' + cleaned + '\n' });
+    }
+
+    // STEP 2 - C -> wasm object(s) -> linked app.wasm (clang.wasm + lld.wasm).
+    log('═══ C → wasm (clang + lld) ═══', 'step');
+    const so = [], se = [];
+    const ol = console.log, oe = console.error;
+    const grab = (a) => a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ').replace(/\x1b\[[0-9;]*m/g, '');
+    console.log = function (...a) { ol.apply(console, a); const t = grab(a); if (t.trim()) so.push(t); };
+    console.error = function (...a) { oe.apply(console, a); const t = grab(a); if (t.trim()) se.push(t); };
+    try {
+      await clangModule.compileEachLink(cFilesData, 'app.wasm');
+    } finally {
+      console.log = ol; console.error = oe;
+    }
+    se.forEach(c => c.split('\n').forEach(l => l && log(l, 'err')));
+
+    const r = await clangModule.getFile('app.wasm');
+    if (!r || !r.ok) throw new Error((r && r.error) || 'clang produced no app.wasm (see log)');
+    log(`[clang] linked app.wasm (${r.bytes.length} bytes)`, 'ok');
+    return r.bytes;
+  }
+
+  // ── recompile: source -> wasm -> live instance ────────────────────────────
+  let busy = false;
+  async function recompile() {
+    if (busy) return;
+    if (!compilerReady) { log('[recompile] compiler not ready', 'err'); return; }
+    busy = true;
+    $('recompile').disabled = true;
+    setStatus('compiling…', 'busy');
+    clearLog();
+    const t = performance.now();
+    try {
+      const bytes = await compileToWasm(editorEl.value);
+      engine = await instantiateEngine(bytes);
+      engineMem = engine.exports.memory;
+      bufPtr = engine.exports.bufAddr();
+      const dt = ((performance.now() - t) / 1000).toFixed(1);
+      setStatus('engine live · ' + dt + 's', 'ok');
+      log(`[ok] engine live in ${dt}s`, 'ok');
+      doCompute();
+    } catch (e) {
+      setStatus('build failed', 'err');
+      log('[fail] ' + (e.message || e), 'err');
+      resultEl.textContent = 'Build failed - see Build log tab.';
+      resultEl.classList.add('err');
+    } finally {
+      busy = false;
+      $('recompile').disabled = false;
+    }
+  }
+
+  // ── save fork: bake the current editor source back into a fresh document ───
+  function saveFork() {
+    const edited = editorEl.value;
+    const re = /(<script\b[^>]*id="engine-src"[^>]*>)([\s\S]*?)(<\/script>)/;
+    if (!re.test(ORIGINAL_HTML)) { log('[fork] could not locate engine source block', 'err'); return; }
+    const html = ORIGINAL_HTML.replace(re, (m, a, b, c) => a + '\n' + edited + '\n' + c);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'unitcalc-fork.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    log('[fork] downloaded unitcalc-fork.html (' + html.length + ' bytes)', 'ok');
+  }
+
+  function showToolchainBanner() {
+    bannerEl.style.display = 'block';
+    bannerEl.innerHTML =
+      'Compiler toolchain not found at <code>./toolchain</code>. The calculator can\'t build until it\'s present.<br>' +
+      'From this file\'s folder run <code>./fetch-toolchain.sh</code> (or copy the demo\'s <code>static/</code> into <code>toolchain/</code>), then reload. ' +
+      'You also need to serve this over <code>http://</code> (e.g. <code>python3 -m http.server</code>) - modules and wasm don\'t load from <code>file://</code>.';
+  }
+
+  // ── wiring ────────────────────────────────────────────────────────────────
+  $('compute').addEventListener('click', doCompute);
+  exprEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCompute(); });
+  $('recompile').addEventListener('click', recompile);
+  $('saveFork').addEventListener('click', saveFork);
+  for (const chip of document.querySelectorAll('.chip')) {
+    chip.addEventListener('click', () => { exprEl.value = chip.textContent; doCompute(); });
+  }
+
+  // ── boot ──────────────────────────────────────────────────────────────────
+  (async function boot() {
+    setStatus('loading compiler…', 'busy');
+    try {
+      await initCompiler();
+    } catch (e) {
+      setStatus('toolchain missing', 'err');
+      log('[boot] ' + (e.message || e), 'err');
+      showToolchainBanner();
+      resultEl.textContent = 'Compiler toolchain missing - see the banner above.';
+      resultEl.classList.add('err');
+      return;
+    }
+    setStatus('compiling engine…', 'busy');
+    await recompile();   // build the embedded engine so the calculator is live on open
+  })();
+})();
+</script>
+</body>
+</html>
