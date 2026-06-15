@@ -31,11 +31,13 @@ native-speed WASM core **and** the JS for the UI, from one language.
 | [`unitcalc.html`](unitcalc.html) | Nim → C → **WASM** | A unit-aware engineering calculator. Edit the unit table / add a formula in Nim, recompile, and the calculator changes. Dimensional algebra over the 7 SI base units catches `1 m + 1 s`. |
 | [`fractal.html`](fractal.html) | Nim → C → **WASM** | A real-time fractal explorer - millions of iterations per frame (genuinely needs native code). Click to zoom; swap the iteration formula (Mandelbrot / Cubic / Burning Ship / Quartic) and recompile. |
 | [`physics.html`](physics.html) | Nim → C → **WASM** | Thousands of particles integrated every frame at 60 fps. Mouse attracts/repels; fork the **force law** (gravity / inverse-cube / spring / vortex) and recompile. |
+| [`arena.html`](arena.html) | Nim → C → **WASM** | A Tron light-cycle duel where each bot's AI is Nim you rewrite. Edit a bot's `decide` logic, recompile, watch your strategy fight; Save Fork and the file *is* your champion bot - hand it to a friend and their copy runs your compiled, sandboxed AI. |
 | [`nimplot.html`](nimplot.html) | Nim → **JavaScript** | A live function plotter using Nim's *other* backend - `nim js` emits JavaScript that draws straight to the canvas via the DOM. Recompiles in ~1 s. |
 
 <p align="center">
-  <img src="screenshots/physics-swirl.png" width="49%" alt="Particle vortex">
-  <img src="screenshots/nimplot-cubic.png" width="49%" alt="Nim→JS function plot">
+  <img src="screenshots/physics-swirl.png" width="32%" alt="Particle vortex">
+  <img src="screenshots/nimplot-cubic.png" width="32%" alt="Nim to JS function plot">
+  <img src="screenshots/arena-duel.png" width="32%" alt="Tron light-cycle bot duel">
 </p>
 
 ## Running it
@@ -91,7 +93,7 @@ rewrites just that block into a fresh copy of the document and downloads it.
 
 | File | What |
 |------|------|
-| `unitcalc.html` `fractal.html` `physics.html` `nimplot.html` | The forkware documents (app + Nim engine + shell + compiler bridge). |
+| `unitcalc.html` `fractal.html` `physics.html` `arena.html` `nimplot.html` | The forkware documents (app + Nim engine + shell + compiler bridge). |
 | `engine.nim` | Standalone copy of `unitcalc`'s embedded engine, for offline reading/editing. |
 | `fetch-toolchain.sh` | Mirrors the Nim→WASM toolchain into `toolchain/`. |
 | `screenshots/` | Reference captures used in this README. |

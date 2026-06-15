@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NimArena - forkware</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+         max-width: 980px; margin: 0 auto; padding: 22px 20px 60px;
+         background: #0d1117; color: #e6edf3; }
+  h1 { color: #f0883e; margin: 0 0 2px; font-size: 22px; }
+  .sub { color: #8b949e; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+  .sub b { color: #adbac7; }
+  a { color: #58a6ff; text-decoration: none; }
+
+  .topbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .pill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 11px; }
+  .pill.idle { background: #21262d; color: #8b949e; }
+  .pill.busy { background: #f0883e; color: #000; }
+  .pill.ok   { background: #2ea043; color: #fff; }
+  .pill.err  { background: #f85149; color: #fff; }
+  .grow { flex: 1; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid #21262d; margin-bottom: 14px; }
+  .tab { background: none; border: none; color: #8b949e; padding: 9px 14px; cursor: pointer;
+         font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent; }
+  .tab.active { color: #e6edf3; border-bottom-color: #f0883e; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  button.act { background: #238636; color: #fff; border: none; border-radius: 6px;
+               padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  button.act:hover:not(:disabled) { background: #2ea043; }
+  button.act.alt { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+  button.act.alt:hover:not(:disabled) { background: #30363d; }
+  button.act:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+
+  canvas { width: 100%; max-width: 760px; height: auto; border: 1px solid #30363d; border-radius: 8px;
+           display: block; background: #0d1117; image-rendering: pixelated; }
+  .ctrls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  .score { font-family: ui-monospace, monospace; font-size: 13px; }
+  .score .b { color: #58a6ff; font-weight: 700; }
+  .score .o { color: #f0883e; font-weight: 700; }
+  .score .d { color: #8b949e; }
+  .examples { margin-top: 14px; }
+  .eqlabel { color: #6e7681; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .chip { display: inline-block; background: #161b22; border: 1px solid #30363d; color: #adbac7;
+          border-radius: 14px; padding: 5px 12px; margin: 0 6px 8px 0; font-size: 12.5px; cursor: pointer; }
+  .chip:hover { border-color: #1f6feb; color: #e6edf3; }
+
+  textarea { width: 100%; height: 480px; background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+             border-radius: 6px; padding: 12px; font-family: ui-monospace, monospace; font-size: 12.5px;
+             line-height: 1.45; resize: vertical; tab-size: 2; }
+  textarea:focus { outline: none; border-color: #1f6feb; }
+  .srcbar { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+  .hint { color: #8b949e; font-size: 12px; }
+
+  pre#log { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px;
+            font-size: 12px; line-height: 1.5; max-height: 560px; overflow: auto; white-space: pre-wrap;
+            word-break: break-word; }
+  .l-info { color: #58a6ff; } .l-ok { color: #3fb950; } .l-err { color: #f85149; }
+  .l-out { color: #e6edf3; } .l-step { color: #f0883e; font-weight: 700; }
+
+  .banner { background: #2d1a0a; border: 1px solid #9e5a1e; color: #ffce99; border-radius: 8px;
+            padding: 12px 14px; margin-bottom: 14px; font-size: 13px; line-height: 1.5; display: none; }
+  .banner code { background: #1c1206; padding: 1px 5px; border-radius: 4px; }
+  .footer { color: #6e7681; font-size: 11px; margin-top: 26px; padding-top: 12px; border-top: 1px solid #21262d; }
+</style>
+</head>
+<body>
+
+<h1>NimArena &nbsp;<span style="font-size:13px;color:#8b949e;font-weight:400;">forkware</span></h1>
+<div class="sub">
+  Two light-cycles duel - and their <b>AI is a real Nim program</b> compiled to
+  <b>WebAssembly</b> in your browser. Open <b>Engine (Nim)</b>, rewrite a bot's
+  <code>decide</code> logic, press <b>Recompile</b>, and watch your strategy
+  fight. <b>Save Fork</b> and you've got a single file that <i>is</i> your
+  champion bot - pass it to a friend, their copy runs your compiled AI, and they
+  can fork it right back. Safe to run a stranger's, because it's WASM-sandboxed.
+</div>
+
+<div id="banner" class="banner"></div>
+
+<div class="topbar">
+  <span id="status" class="pill idle">loading…</span>
+  <span class="grow"></span>
+  <button id="saveFork" class="act alt" title="Download this document with your edited bots baked in">Save Fork ↧</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="view">Arena</button>
+  <button class="tab" data-tab="src">Engine (Nim)</button>
+  <button class="tab" data-tab="log">Build log</button>
+</div>
+
+<!-- ── Arena ────────────────────────────────────────────────────────────── -->
+<div class="panel active" id="panel-view">
+  <canvas id="screen" width="760" height="472"></canvas>
+  <div class="ctrls">
+    <button id="restart" class="act alt">New match</button>
+    <button id="pause" class="act alt">Pause</button>
+    <button id="speed" class="act alt">Speed: normal</button>
+    <span id="score" class="score"></span>
+  </div>
+  <div class="examples">
+    <div class="eqlabel">Swap the BLUE bot's strategy - click to load into the Engine tab, then Recompile</div>
+    <span class="chip" data-bot="survivor">Survivor · most open space</span>
+    <span class="chip" data-bot="hugger">Wall-hugger · right-hand rule</span>
+    <span class="chip" data-bot="aggressor">Aggressor · chase the rival</span>
+    <span class="chip" data-bot="random">Random walk</span>
+  </div>
+</div>
+
+<!-- ── Engine source ────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-src">
+  <div class="srcbar">
+    <button id="recompile" class="act">Recompile engine</button>
+    <span class="hint">Edit <code>botBlue</code> or <code>botOrange</code> (return -1 = turn left, 0 = straight, 1 = turn right), then recompile. The first build downloads the ~70&nbsp;MB toolchain, cached afterwards.</span>
+  </div>
+  <textarea id="editor" spellcheck="false"></textarea>
+</div>
+
+<!-- ── Build log ────────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-log">
+  <pre id="log"><span class="l-info">[idle]</span></pre>
+</div>
+
+<div class="footer">
+  Pipeline: Nim 2.2.4 (wasm) → C → <code>clang</code> (wasm) → <code>wasm-ld</code> (wasm) → your bots, stepped each tick through the exported <code>step</code>.
+  Compiler by <a href="https://github.com/benagastov/Nim-WASM-Compiler" target="_blank" rel="noopener">benagastov/Nim-WASM-Compiler</a>.
+  Companions: <a href="./unitcalc.html">unitcalc</a> · <a href="./fractal.html">fractal</a> · <a href="./physics.html">physics</a> · <a href="./nimplot.html">nimplot</a>.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     THE ENGINE. Real Nim, compiled to WebAssembly in-browser. The two bots
+     and the game rules live here; step() advances one tick and renders the
+     grid. Edit a bot's decide logic to change how it plays.
+     ════════════════════════════════════════════════════════════════════════ -->
+<script type="text/x-nim" id="engine-src">
+## NimArena engine - the compiled, forkable core.
+## Two light-cycles move on a grid, leaving solid trails. A bot returns its turn
+## each tick: -1 = turn left, 0 = go straight, 1 = turn right. Crash into any
+## wall, trail, or each other and you lose. Edit botBlue / botOrange, press
+## "Recompile engine", and watch your strategy fight. Then Save Fork.
+
+import std/math
+
+const
+  CELL = 8
+  GW = 95           # grid width  (cells)
+  GH = 59           # grid height (cells)
+  FW = GW * CELL    # 760 px
+  FH = GH * CELL    # 472 px
+  MaxSteps = 800    # cap a match; if reached, decide by territory
+
+var
+  grid: array[GW * GH, uint8]    # 0 empty, 1 blue trail, 2 orange trail
+  bx, by, bdx, bdy: int          # blue  head position + heading
+  ox, oy, odx, ody: int          # orange head position + heading
+  alive = 0                      # 0 running, 1 blue wins, 2 orange wins, 3 draw
+  ticks = 0                      # steps elapsed this match
+  fb: array[FW * FH * 4, uint8]  # RGBA frame buffer (shared with JS)
+  rngState: uint32 = 1
+
+proc rng(): float =
+  rngState = rngState xor (rngState shl 13)
+  rngState = rngState xor (rngState shr 17)
+  rngState = rngState xor (rngState shl 5)
+  result = rngState.float / 4294967295.0
+
+# ── helpers a bot can use ───────────────────────────────────────────────────
+proc turnLeft(dx, dy: int): tuple[x, y: int] = (x: dy, y: -dx)
+proc turnRight(dx, dy: int): tuple[x, y: int] = (x: -dy, y: dx)
+proc applyTurn(dx, dy, t: int): tuple[x, y: int] =
+  if t < 0: turnLeft(dx, dy)
+  elif t > 0: turnRight(dx, dy)
+  else: (x: dx, y: dy)
+
+proc safe(x, y: int): bool =
+  ## is cell (x, y) on the board and empty?
+  x >= 0 and x < GW and y >= 0 and y < GH and grid[y * GW + x] == 0'u8
+
+proc rayFree(x, y, dx, dy, maxd: int): int =
+  ## how many empty cells lie straight ahead from (x, y) in heading (dx, dy)
+  var cx = x
+  var cy = y
+  for i in 0 ..< maxd:
+    cx += dx
+    cy += dy
+    if not safe(cx, cy): break
+    inc result
+
+# ════════════════════════════════════════════════════════════════════════════
+#  THE BOTS - this is what you fork. Each returns -1 / 0 / 1 (left/straight/right).
+#  Available: hx,hy = my head, dx,dy = my heading; bx,by = blue head,
+#  ox,oy = orange head; safe(x,y), rayFree(...), applyTurn(...), rng().
+# ════════════════════════════════════════════════════════════════════════════
+proc botBlue(hx, hy, dx, dy: int): int =
+  # >>> BLUE BOT (edit me) >>>
+  # Survivor: steer toward whichever direction has the most open space.
+  var best = 0
+  var bestScore = -1
+  for t in [0, -1, 1]:
+    let h = applyTurn(dx, dy, t)
+    let nx = hx + h.x
+    let ny = hy + h.y
+    if safe(nx, ny):
+      let s = rayFree(nx, ny, h.x, h.y, 30)
+      if s > bestScore:
+        bestScore = s
+        best = t
+  result = best
+  # <<< BLUE BOT <<<
+
+proc botOrange(hx, hy, dx, dy: int): int =
+  # >>> ORANGE BOT (edit me) >>>
+  # Aggressor: keep space, but bias toward cutting the rival (blue) off.
+  var best = 0
+  var bestScore = -1000000
+  for t in [0, -1, 1]:
+    let h = applyTurn(dx, dy, t)
+    let nx = hx + h.x
+    let ny = hy + h.y
+    if safe(nx, ny):
+      let space = rayFree(nx, ny, h.x, h.y, 30)
+      let dist = abs(nx - bx) + abs(ny - by)
+      let s = space * 3 - dist
+      if s > bestScore:
+        bestScore = s
+        best = t
+  result = best
+  # <<< ORANGE BOT <<<
+
+# ── rendering ───────────────────────────────────────────────────────────────
+proc putCell(cx, cy: int; r, g, b: uint8) =
+  let x0 = cx * CELL
+  let y0 = cy * CELL
+  for yy in 0 ..< CELL:
+    for xx in 0 ..< CELL:
+      let idx = ((y0 + yy) * FW + (x0 + xx)) * 4
+      fb[idx] = r; fb[idx + 1] = g; fb[idx + 2] = b; fb[idx + 3] = 255
+
+proc render() =
+  for cy in 0 ..< GH:
+    for cx in 0 ..< GW:
+      case grid[cy * GW + cx]
+      of 1'u8: putCell(cx, cy, 60, 130, 230)
+      of 2'u8: putCell(cx, cy, 230, 130, 50)
+      else:    putCell(cx, cy, 13, 17, 23)
+  putCell(bx, by, 200, 230, 255)     # bright heads
+  putCell(ox, oy, 255, 220, 170)
+
+# ── game rules ──────────────────────────────────────────────────────────────
+proc init(seed: cint) {.exportc, used,
+    codegenDecl: "__attribute__((export_name(\"init\"), used)) $# $#$#".} =
+  rngState = (seed.uint32 * 2654435761'u32) or 1'u32
+  for i in 0 ..< GW * GH: grid[i] = 0'u8
+  bx = GW div 4;       by = GH div 2; bdx = 1;  bdy = 0
+  ox = (GW * 3) div 4; oy = GH div 2; odx = -1; ody = 0
+  grid[by * GW + bx] = 1'u8
+  grid[oy * GW + ox] = 2'u8
+  alive = 0
+  ticks = 0
+  render()
+
+proc step(): cint {.exportc, used,
+    codegenDecl: "__attribute__((export_name(\"step\"), used)) $# $#$#".} =
+  if alive != 0: return alive.cint
+
+  inc ticks
+  if ticks >= MaxSteps:                 # time up: most territory wins
+    var bc = 0
+    var oc = 0
+    for i in 0 ..< GW * GH:
+      if grid[i] == 1'u8: inc bc
+      elif grid[i] == 2'u8: inc oc
+    alive = (if bc > oc: 1 elif oc > bc: 2 else: 3)
+    render()
+    return alive.cint
+
+  # both bots decide simultaneously from the same board
+  let bt = botBlue(bx, by, bdx, bdy)
+  let ot = botOrange(ox, oy, odx, ody)
+  let bh = applyTurn(bdx, bdy, bt)
+  let oh = applyTurn(odx, ody, ot)
+  bdx = bh.x; bdy = bh.y
+  odx = oh.x; ody = oh.y
+
+  let nbx = bx + bdx; let nby = by + bdy
+  let nox = ox + odx; let noy = oy + ody
+  let headOn = (nbx == nox and nby == noy)
+  let bCrash = (not safe(nbx, nby)) or headOn
+  let oCrash = (not safe(nox, noy)) or headOn
+
+  if bCrash or oCrash:
+    if bCrash and oCrash: alive = 3
+    elif bCrash: alive = 2
+    else: alive = 1
+    render()
+    return alive.cint
+
+  grid[nby * GW + nbx] = 1'u8
+  grid[noy * GW + nox] = 2'u8
+  bx = nbx; by = nby
+  ox = nox; oy = noy
+  render()
+  return 0
+
+proc fbAddr(): pointer {.exportc, used,
+    codegenDecl: "__attribute__((export_name(\"fbAddr\"), used)) $# $#$#".} =
+  cast[pointer](addr fb[0])
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     THE SHELL. Loads the Nim→wasm toolchain, compiles the engine, instantiates
+     it with a WASI shim, and runs the match loop.
+     ════════════════════════════════════════════════════════════════════════ -->
+<script src="./toolchain/nim/nim-bundle.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const ORIGINAL_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const TOOLCHAIN = './toolchain';
+
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status'), bannerEl = $('banner');
+  const editorEl = $('editor'), logEl = $('log');
+  const canvas = $('screen'), ctx = canvas.getContext('2d'), scoreEl = $('score');
+  const W = canvas.width, H = canvas.height;
+
+  const ENGINE_SRC = $('engine-src').textContent.replace(/^\n/, '');
+  editorEl.value = ENGINE_SRC;
+
+  // strategy variants for the chips (replace the BLUE BOT block)
+  const BOTS = {
+    survivor: [
+      '  # Survivor: steer toward whichever direction has the most open space.',
+      '  var best = 0',
+      '  var bestScore = -1',
+      '  for t in [0, -1, 1]:',
+      '    let h = applyTurn(dx, dy, t)',
+      '    let nx = hx + h.x',
+      '    let ny = hy + h.y',
+      '    if safe(nx, ny):',
+      '      let s = rayFree(nx, ny, h.x, h.y, 30)',
+      '      if s > bestScore:',
+      '        bestScore = s',
+      '        best = t',
+      '  result = best',
+    ],
+    hugger: [
+      '  # Wall-hugger: keep turning right whenever it is safe (right-hand rule).',
+      '  for t in [1, 0, -1]:',
+      '    let h = applyTurn(dx, dy, t)',
+      '    if safe(hx + h.x, hy + h.y):',
+      '      return t',
+      '  result = 0',
+    ],
+    aggressor: [
+      '  # Aggressor: keep space, but chase the rival (orange) to cut it off.',
+      '  var best = 0',
+      '  var bestScore = -1000000',
+      '  for t in [0, -1, 1]:',
+      '    let h = applyTurn(dx, dy, t)',
+      '    let nx = hx + h.x',
+      '    let ny = hy + h.y',
+      '    if safe(nx, ny):',
+      '      let space = rayFree(nx, ny, h.x, h.y, 30)',
+      '      let dist = abs(nx - ox) + abs(ny - oy)',
+      '      let s = space - dist * 2',
+      '      if s > bestScore:',
+      '        bestScore = s',
+      '        best = t',
+      '  result = best',
+    ],
+    random: [
+      '  # Random walk: pick any safe direction at random.',
+      '  var opts: array[3, int]',
+      '  var n = 0',
+      '  for t in [0, -1, 1]:',
+      '    let h = applyTurn(dx, dy, t)',
+      '    if safe(hx + h.x, hy + h.y):',
+      '      opts[n] = t',
+      '      inc n',
+      '  if n == 0: result = 0',
+      '  else: result = opts[int(rng() * n.float) mod n]',
+    ],
+  };
+  function applyBot(key) {
+    const body = BOTS[key];
+    if (!body) return;
+    const block = '  # >>> BLUE BOT (edit me) >>>\n' + body.join('\n') + '\n  # <<< BLUE BOT <<<';
+    editorEl.value = editorEl.value.replace(/  # >>> BLUE BOT[\s\S]*?# <<< BLUE BOT <<</, block);
+  }
+
+  for (const tab of document.querySelectorAll('.tab')) {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      $('panel-' + tab.dataset.tab).classList.add('active');
+    });
+  }
+
+  function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = 'pill ' + (cls || 'idle'); }
+  function log(text, cls) {
+    const span = document.createElement('span');
+    span.className = 'l-' + (cls || 'info');
+    span.textContent = text + '\n';
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function clearLog() { logEl.textContent = ''; }
+
+  // ── WASI shim (instantiate the engine, keep it, call its exports) ─────────
+  function instantiateEngine(bytes) {
+    return WebAssembly.compile(bytes).then((module) => {
+      const ENC = new TextEncoder();
+      const memRef = { mem: null };
+      const u8 = () => new Uint8Array(memRef.mem.buffer);
+      const dv = () => new DataView(memRef.mem.buffer);
+      const SUCCESS = 0, BADF = 8;
+      const out = { stdout: [], stderr: [] };
+      function ProcExit(code) { this.code = code; this.__procExit = true; }
+      function writeIovs(fd, iovsPtr, iovsLen, nwrittenPtr) {
+        const view = dv(); let total = 0;
+        for (let i = 0; i < iovsLen; i++) {
+          const p = iovsPtr + i * 8;
+          const buf = view.getUint32(p, true), len = view.getUint32(p + 4, true);
+          if (len > 0) { out[fd === 2 ? 'stderr' : 'stdout'].push(u8().slice(buf, buf + len)); total += len; }
+        }
+        view.setUint32(nwrittenPtr, total, true);
+        return SUCCESS;
+      }
+      const impl = {
+        proc_exit(code) { throw new ProcExit(code); },
+        fd_write(fd, p, n, w) { return writeIovs(fd, p, n, w); },
+        fd_read(_fd, _i, _n, nreadPtr) { dv().setUint32(nreadPtr, 0, true); return SUCCESS; },
+        fd_close() { return SUCCESS; },
+        fd_seek(_fd, _lo, _hi, _w, newOffPtr) {
+          if (typeof newOffPtr === 'number') { dv().setUint32(newOffPtr, 0, true); dv().setUint32(newOffPtr + 4, 0, true); }
+          return SUCCESS;
+        },
+        fd_fdstat_get(_fd, buf) {
+          const v = dv(); v.setUint8(buf, 2); v.setUint16(buf + 2, 0, true);
+          v.setBigUint64(buf + 8, 0xffffffffffffffffn, true);
+          v.setBigUint64(buf + 16, 0xffffffffffffffffn, true);
+          return SUCCESS;
+        },
+        fd_prestat_get() { return BADF; },
+        fd_prestat_dir_name() { return BADF; },
+        args_sizes_get(a, b) { const v = dv(); v.setUint32(a, 1, true); v.setUint32(b, ENC.encode('engine').length + 1, true); return SUCCESS; },
+        args_get(argvPtr, bufPtr) { dv().setUint32(argvPtr, bufPtr, true); u8().set(ENC.encode('engine\0'), bufPtr); return SUCCESS; },
+        environ_sizes_get(a, b) { const v = dv(); v.setUint32(a, 0, true); v.setUint32(b, 0, true); return SUCCESS; },
+        environ_get() { return SUCCESS; },
+        clock_time_get(_id, _p, t) { dv().setBigUint64(t, BigInt(Date.now()) * 1000000n, true); return SUCCESS; },
+        clock_res_get(_id, r) { dv().setBigUint64(r, 1000000n, true); return SUCCESS; },
+        random_get(buf, len) {
+          const b = u8().subarray(buf, buf + len);
+          if (globalThis.crypto && crypto.getRandomValues)
+            for (let o = 0; o < len; o += 65536) crypto.getRandomValues(b.subarray(o, Math.min(o + 65536, len)));
+          else for (let i = 0; i < len; i++) b[i] = (Math.random() * 256) | 0;
+          return SUCCESS;
+        },
+        poll_oneoff(_i, _o, _n, neventsPtr) { dv().setUint32(neventsPtr, 0, true); return SUCCESS; },
+        sched_yield() { return SUCCESS; },
+      };
+      const imports = {};
+      for (const { module: mod, name, kind } of WebAssembly.Module.imports(module)) {
+        imports[mod] = imports[mod] || {};
+        if (kind === 'function') imports[mod][name] = impl[name] || (() => 0);
+      }
+      return WebAssembly.instantiate(module, imports).then((instance) => {
+        memRef.mem = instance.exports.memory;
+        try {
+          if (typeof instance.exports.NimMain === 'function') instance.exports.NimMain();
+          else if (typeof instance.exports._start === 'function') instance.exports._start();
+        } catch (e) { if (!(e && e.__procExit)) throw e; }
+        for (const fn of ['step', 'fbAddr', 'init'])
+          if (typeof instance.exports[fn] !== 'function')
+            throw new Error('engine is missing the ' + fn + ' export - the linker may have stripped it');
+        return instance;
+      });
+    });
+  }
+
+  // ── live engine + match state ─────────────────────────────────────────────
+  let engine = null, engineMem = null;
+  let matchSeed = 1;
+  let scores = { blue: 0, orange: 0, draw: 0 };
+  const SPEEDS = [{ name: 'slow', ms: 45 }, { name: 'normal', ms: 22 }, { name: 'fast', ms: 11 }];
+  let speedIdx = 1;
+  let paused = false;
+  let overUntil = 0, lastResult = 0;
+
+  function blit() {
+    const ptr = engine.exports.fbAddr();
+    const src = new Uint8ClampedArray(engineMem.buffer, ptr, W * H * 4);
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(src), W, H), 0, 0);
+  }
+  function overlay(text, color) {
+    ctx.font = 'bold 38px ui-monospace, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText(text, W / 2, H / 2);
+    ctx.fillStyle = color; ctx.fillText(text, W / 2, H / 2);
+  }
+  function resultText(r) { return r === 1 ? ['BLUE WINS', '#58a6ff'] : r === 2 ? ['ORANGE WINS', '#f0883e'] : ['DRAW', '#c9d1d9']; }
+  function updateScore() {
+    scoreEl.innerHTML = `<span class="b">Blue ${scores.blue}</span> &nbsp;·&nbsp; ` +
+      `<span class="o">Orange ${scores.orange}</span> &nbsp;·&nbsp; <span class="d">draws ${scores.draw}</span>`;
+  }
+
+  let acc = 0, lastT = 0;
+  function loop(ts) {
+    if (engine && !busy) {
+      if (!lastT) lastT = ts;
+      const dt = ts - lastT; lastT = ts;
+      if (!paused) {
+        if (overUntil) {
+          if (ts >= overUntil) { overUntil = 0; matchSeed++; engine.exports.init(matchSeed); blit(); }
+          else { blit(); const [t, c] = resultText(lastResult); overlay(t, c); }
+        } else {
+          acc += dt;
+          let steps = 0;
+          while (acc >= SPEEDS[speedIdx].ms && steps < 4) {
+            acc -= SPEEDS[speedIdx].ms; steps++;
+            const r = engine.exports.step();
+            if (r !== 0) {
+              if (r === 1) scores.blue++; else if (r === 2) scores.orange++; else scores.draw++;
+              lastResult = r; overUntil = ts + 1500; updateScore();
+              log('[match] ' + (r === 1 ? 'BLUE' : r === 2 ? 'ORANGE' : 'DRAW') + ' wins  (' + scores.blue + '/' + scores.orange + '/' + scores.draw + ')', 'ok');
+              break;
+            }
+          }
+          blit();
+          if (overUntil) { const [t, c] = resultText(lastResult); overlay(t, c); }
+        }
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ── compiler bridge: Nim source -> app.wasm bytes ─────────────────────────
+  let clangModule = null, compilerReady = false;
+  function loadNimReady() {
+    return new Promise((resolve, reject) => {
+      const started = performance.now();
+      (function poll() {
+        if (typeof window.FS !== 'undefined' && typeof window.callMain !== 'undefined') return resolve();
+        if (performance.now() - started > 60000) return reject(new Error('nim runtime did not initialise (toolchain missing?)'));
+        setTimeout(poll, 50);
+      })();
+    });
+  }
+  async function initCompiler() {
+    if (typeof window.callMain === 'undefined' && typeof window.FS === 'undefined') throw new Error('toolchain not found');
+    await loadNimReady();
+    await new Promise(r => setTimeout(r, 150));
+    log('[init] nim runtime ready, loading clang.js…', 'info');
+    clangModule = await import(`${TOOLCHAIN}/clang/clang.js`);
+    const CLANG_DIST = new URL(`${TOOLCHAIN}/clang`, window.location.href).href.replace(/\/$/, '');
+    await clangModule.init({ path: CLANG_DIST });
+    compilerReady = true;
+    log('[init] clang.js ready', 'ok');
+  }
+
+  async function compileToWasm(nimSource) {
+    log('═══ Nim → C ═══', 'step');
+    let nimRc = 0;
+    {
+      let so = '', se = '';
+      const op = window.print, oe = window.printErr;
+      window.print = (t) => { so += t + '\n'; };
+      window.printErr = (t) => { se += t + '\n'; };
+      globalThis.__NIM_USER_CODE__ = nimSource;
+      globalThis.__NIM_USER_CODE_PENDING__ = nimSource;
+      globalThis.__NIM_USER_PATH__ = '/tmp/user.nim';
+      globalThis.__NIM_USER_CODE_WRITTEN__ = false;
+      const nimArgs = ['c', '--hints:off', '-d:release', '-d:useMalloc',
+                       '--path:/lib/pure', '--path:/lib/pure/collections', '--path:/lib/core',
+                       '-o:/tmp/user', '/tmp/user.nim'];
+      try { nimRc = window.callMain(nimArgs); }
+      catch (e) { log('[nim] callMain threw: ' + (e.message || e), 'err'); nimRc = -1; }
+      window.print = op; window.printErr = oe;
+      if (se.trim()) se.trim().split('\n').forEach(l => l && log(l, 'err'));
+    }
+    log(`[nim] returned ${nimRc} (gcc failure expected; .c files are in MEMFS)`, 'info');
+
+    log('═══ collect C from nim cache ═══', 'step');
+    const cacheDir = '/home/web_user/.cache/nim/user_r';
+    const entries = window.FS.readdir(cacheDir);
+    const cFiles = entries.filter(f => f.endsWith('.nim.c') || f.endsWith('.nim.cpp')).sort();
+    if (cFiles.length === 0) throw new Error('no .c files in nim cache - the Nim compile failed (see log above)');
+    log(`[nim] ${cFiles.length} translation units`, 'info');
+
+    let nimbaseContent = '';
+    try { nimbaseContent = await (await fetch(`${TOOLCHAIN}/nim/nimbase.h`)).text(); }
+    catch (e) { log('[nim] could not fetch nimbase.h: ' + e.message, 'err'); }
+
+    const cFilesData = [];
+    for (let idx = 0; idx < cFiles.length; idx++) {
+      const f = cFiles[idx];
+      const c = window.FS.readFile(cacheDir + '/' + f, { encoding: 'utf8' });
+      const cleaned = c
+        .split('\n')
+        .filter(line => !/^#include\s+["<](?:\/lib\/)?nimbase\.h[">]\s*$/.test(line))
+        .filter(line => !/^#define NIM_INTBITS/.test(line))
+        .filter(line => !/^#define NIM_EmulateOverflowChecks/.test(line))
+        .filter(line => !/^#undef (LANGUAGE_C|MIPSEB|MIPSEL|PPC|R3000|R4000|i386|linux|mips|near|far|powerpc|unix)\s*$/.test(line))
+        .join('\n')
+        .replace(/int main\(int (\w+), char\*\* (\w+), char\*\* (\w+)\) \{/, 'int main(int $1, char** $2) {\n\tchar** $3 = (char**)0;');
+      const header = '/* Combined header */\n#define NIM_INTBITS 32\n#define NIM_EmulateOverflowChecks\n#include <signal.h>\n#include <string.h>\ntypedef void (*__sighandler_t)(int);\n#ifndef SIG_IGN\n#define SIG_IGN ((__sighandler_t)1)\n#endif\n#ifndef SIG_DFL\n#define SIG_DFL ((__sighandler_t)0)\n#endif\n#ifndef SIG_ERR\n#define SIG_ERR ((__sighandler_t)-1)\n#endif\nstatic __sighandler_t signal(int sig, __sighandler_t handler) { (void)sig; (void)handler; return SIG_DFL; }\n__attribute__((weak)) int raise(int sig) { (void)sig; return 0; }\ntypedef long int __jmp_buf[8];\ntypedef struct { __jmp_buf __jmpbuf; int __mask_was_saved; } __jmp_buf_tag;\ntypedef __jmp_buf_tag jmp_buf[1];\nextern int setjmp(jmp_buf __env) __attribute__((__nothrow__));\n_Noreturn void longjmp(jmp_buf __env, int __val) __attribute__((__nothrow__));\n' + nimbaseContent + '\n';
+      cFilesData.push({ input: 'w' + idx + '.c', code: header + '/* ===== ' + f + ' ===== */\n' + cleaned + '\n' });
+    }
+
+    log('═══ C → wasm (clang + lld) ═══', 'step');
+    const so = [], se = [];
+    const ol = console.log, oe = console.error;
+    const grab = (a) => a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ').replace(/\x1b\[[0-9;]*m/g, '');
+    console.log = function (...a) { ol.apply(console, a); const t = grab(a); if (t.trim()) so.push(t); };
+    console.error = function (...a) { oe.apply(console, a); const t = grab(a); if (t.trim()) se.push(t); };
+    try { await clangModule.compileEachLink(cFilesData, 'app.wasm'); }
+    finally { console.log = ol; console.error = oe; }
+    se.forEach(c => c.split('\n').forEach(l => l && log(l, 'err')));
+
+    const r = await clangModule.getFile('app.wasm');
+    if (!r || !r.ok) throw new Error((r && r.error) || 'clang produced no app.wasm (see log)');
+    log(`[clang] linked app.wasm (${r.bytes.length} bytes)`, 'ok');
+    return r.bytes;
+  }
+
+  // ── recompile ─────────────────────────────────────────────────────────────
+  let busy = false, started = false;
+  async function recompile() {
+    if (busy) return;
+    if (!compilerReady) { log('[recompile] compiler not ready', 'err'); return; }
+    busy = true;
+    $('recompile').disabled = true;
+    setStatus('compiling…', 'busy');
+    clearLog();
+    const t = performance.now();
+    try {
+      const bytes = await compileToWasm(editorEl.value);
+      engine = await instantiateEngine(bytes);
+      engineMem = engine.exports.memory;
+      scores = { blue: 0, orange: 0, draw: 0 };
+      matchSeed = 1; overUntil = 0; acc = 0;
+      engine.exports.init(matchSeed);
+      updateScore();
+      const dt = ((performance.now() - t) / 1000).toFixed(1);
+      setStatus('engine live · ' + dt + 's', 'ok');
+      log(`[ok] engine live in ${dt}s`, 'ok');
+      if (!started) { started = true; requestAnimationFrame(loop); }
+    } catch (e) {
+      setStatus('build failed', 'err');
+      log('[fail] ' + (e.message || e), 'err');
+    } finally {
+      busy = false;
+      $('recompile').disabled = false;
+    }
+  }
+
+  // ── save fork ─────────────────────────────────────────────────────────────
+  function saveFork() {
+    const edited = editorEl.value;
+    const re = /(<script\b[^>]*id="engine-src"[^>]*>)([\s\S]*?)(<\/script>)/;
+    if (!re.test(ORIGINAL_HTML)) { log('[fork] could not locate engine source block', 'err'); return; }
+    const html = ORIGINAL_HTML.replace(re, (m, a, b, c) => a + '\n' + edited + '\n' + c);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'nimarena-fork.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    log('[fork] downloaded nimarena-fork.html (' + html.length + ' bytes)', 'ok');
+  }
+
+  function showToolchainBanner() {
+    bannerEl.style.display = 'block';
+    bannerEl.innerHTML =
+      'Compiler toolchain not found at <code>./toolchain</code>. The arena can\'t build until it\'s present.<br>' +
+      'From this file\'s folder run <code>./fetch-toolchain.sh</code>, then reload. ' +
+      'You also need to serve over <code>http://</code> (e.g. <code>python3 -m http.server</code>) - modules and wasm don\'t load from <code>file://</code>.';
+  }
+
+  // ── wiring ────────────────────────────────────────────────────────────────
+  $('restart').addEventListener('click', () => { if (engine) { matchSeed++; overUntil = 0; acc = 0; engine.exports.init(matchSeed); blit(); } });
+  $('pause').addEventListener('click', () => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; });
+  $('speed').addEventListener('click', () => { speedIdx = (speedIdx + 1) % SPEEDS.length; $('speed').textContent = 'Speed: ' + SPEEDS[speedIdx].name; });
+  $('recompile').addEventListener('click', recompile);
+  $('saveFork').addEventListener('click', saveFork);
+  editorEl.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); recompile(); } });
+  for (const chip of document.querySelectorAll('.chip')) {
+    chip.addEventListener('click', () => {
+      applyBot(chip.dataset.bot);
+      document.querySelector('.tab[data-tab="src"]').click();
+      log('[bot] loaded "' + chip.dataset.bot + '" into botBlue - press Recompile', 'info');
+    });
+  }
+
+  // ── boot ──────────────────────────────────────────────────────────────────
+  (async function boot() {
+    setStatus('loading compiler…', 'busy');
+    try {
+      await initCompiler();
+    } catch (e) {
+      setStatus('toolchain missing', 'err');
+      log('[boot] ' + (e.message || e), 'err');
+      showToolchainBanner();
+      return;
+    }
+    setStatus('compiling engine…', 'busy');
+    await recompile();
+  })();
+})();
+</script>
+</body>
+</html>
